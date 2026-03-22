@@ -46,6 +46,9 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
 
+  # Camera
+  mobile_scanner: ^6.0.0
+
 
 
 dev_dependencies:

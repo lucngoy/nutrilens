@@ -5,6 +5,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
+import '../../features/scanner/screens/scanner_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -12,16 +13,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/onboarding',
     redirect: (context, state) {
-        final isLoading = authState.isLoading;
-        final isLoggedIn = authState.valueOrNull != null;
-        final isAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
-        final isOnboarding = state.matchedLocation == '/onboarding';
+      final isLoading = authState.isLoading;
+      final isLoggedIn = authState.valueOrNull != null;
+      final isAuthRoute = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
+      final isOnboarding = state.matchedLocation == '/onboarding';
 
-        if (isLoading) return null;
-        if (isLoggedIn && (isAuthRoute || isOnboarding)) return '/home';
-        if (!isLoggedIn && (isAuthRoute || isOnboarding)) return null;
-        if (!isLoggedIn) return '/login';
-        return null;
+      if (isLoading) return null;
+      if (isLoggedIn && (isAuthRoute || isOnboarding)) return '/home';
+      if (!isLoggedIn && (isAuthRoute || isOnboarding)) return null;
+      if (!isLoggedIn) return '/login';
       return null;
     },
     routes: [
@@ -37,6 +38,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/home',
           builder: (context, state) => const HomeScreen()),
+      GoRoute(
+          path: '/scanner',
+          builder: (context, state) => const ScannerScreen()),
     ],
   );
 });
