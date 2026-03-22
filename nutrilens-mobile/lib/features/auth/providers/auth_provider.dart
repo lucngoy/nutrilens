@@ -1,0 +1,60 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
+import '../../../core/storage/storage_service.dart';
+
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+final authStateProvider =
+    StateNotifierProvider<AuthNotifier, AsyncValue<UserModel?>>(
+  (ref) => AuthNotifier(ref.read(authServiceProvider)),
+);
+
+class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
+  final AuthService _authService;
+
+  AuthNotifier(this._authService) : super(const AsyncValue.loading()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    final loggedIn = await StorageService.isLoggedIn();
+    if (loggedIn) {
+      try {
+        final user = await _authService.getProfile();
+        state = AsyncValue.data(user);
+      } catch (_) {
+        state = const AsyncValue.data(null);
+      }
+    } else {
+      state = const AsyncValue.data(null);
+    }
+  }
+
+  Future<void> login(String username, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      await _authService.login(username: username, password: password);
+      final user = await _authService.getProfile();
+      state = AsyncValue.data(user);
+    } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+    }
+  }
+
+  Future<void> register(String username, String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      await _authService.register(
+          username: username, email: email, password: password);
+      await login(username, password);
+    } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+    }
+  }
+
+  Future<void> logout() async {
+    await _authService.logout();
+    state = const AsyncValue.data(null);
+  }
+}
