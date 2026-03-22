@@ -67,6 +67,6 @@ class AuthService {
             : data.values.first.toString();
       }
     }
-    return 'Une erreur est survenue. Vérifie ta connexion.';
+    return 'An error occurred. Please check your connection.';
   }
 }
