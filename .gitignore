@@ -1,0 +1,18 @@
+# Python / Django
+nutrilens-backend/venv/
+nutrilens-backend/__pycache__/
+nutrilens-backend/*.pyc
+nutrilens-backend/.env
+nutrilens-backend/db.sqlite3
+
+# Flutter
+nutrilens-mobile/.dart_tool/
+nutrilens-mobile/build/
+nutrilens-mobile/.flutter-plugins
+nutrilens-mobile/.flutter-plugins-dependencies
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
