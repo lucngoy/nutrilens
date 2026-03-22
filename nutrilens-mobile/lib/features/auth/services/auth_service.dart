@@ -58,15 +58,35 @@ class AuthService {
     await StorageService.clearTokens();
   }
 
-  String _handleError(DioException e) {
-    if (e.response != null) {
-      final data = e.response!.data;
-      if (data is Map) {
-        return data.values.first is List
-            ? data.values.first.first.toString()
-            : data.values.first.toString();
-      }
+    String _handleError(DioException e) {
+        if (e.response != null) {
+            final data = e.response!.data;
+            if (data is Map) {
+            final messages = <String>[];
+            data.forEach((field, value) {
+                final fieldName = _formatFieldName(field.toString());
+                if (value is List) {
+                for (final msg in value) {
+                    messages.add('$fieldName: $msg');
+                }
+                } else {
+                messages.add('$fieldName: $value');
+                }
+            });
+            return messages.join('\n');
+            }
+        }
+        return 'Something went wrong. Please check your connection.';
     }
-    return 'An error occurred. Please check your connection.';
-  }
+
+    String _formatFieldName(String field) {
+        switch (field) {
+            case 'username': return 'Username';
+            case 'password': return 'Password';
+            case 'email': return 'Email';
+            case 'non_field_errors': return 'Error';
+            case 'detail': return 'Error';
+            default: return field;
+        }
+    }
 }

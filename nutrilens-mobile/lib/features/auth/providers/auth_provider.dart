@@ -31,27 +31,27 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 
-  Future<void> login(String username, String password) async {
-    state = const AsyncValue.loading();
-    try {
-      await _authService.login(username: username, password: password);
-      final user = await _authService.getProfile();
-      state = AsyncValue.data(user);
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    Future<void> login(String username, String password) async {
+        try {
+            await _authService.login(username: username, password: password);
+            final user = await _authService.getProfile();
+            state = AsyncValue.data(user);
+        } catch (e) {
+            state = const AsyncValue.data(null);
+            rethrow;
+        }
     }
-  }
 
-  Future<void> register(String username, String email, String password) async {
-    state = const AsyncValue.loading();
-    try {
-      await _authService.register(
-          username: username, email: email, password: password);
-      await login(username, password);
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    Future<void> register(String username, String email, String password) async {
+        try {
+            await _authService.register(
+                username: username, email: email, password: password);
+            await login(username, password);
+        } catch (e) {
+            state = const AsyncValue.data(null);
+            rethrow;
+        }
     }
-  }
 
   Future<void> logout() async {
     await _authService.logout();
