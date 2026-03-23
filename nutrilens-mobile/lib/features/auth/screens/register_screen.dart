@@ -20,7 +20,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscureConfirm = true;
   String? _error;
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   Future<void> _register() async {
     if (_passwordController.text != _confirmPasswordController.text) {
@@ -243,7 +243,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide:
-              const BorderSide(color: Color(0xFFEA2E00), width: 1.5),
+              const BorderSide(color: Color(0xFFEC6F2D), width: 1.5),
         ),
         filled: true,
         fillColor: Colors.white,

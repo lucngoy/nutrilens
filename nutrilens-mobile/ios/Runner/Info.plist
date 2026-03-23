@@ -68,5 +68,11 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>NutriLens needs camera access to scan product barcodes.</string>
+
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

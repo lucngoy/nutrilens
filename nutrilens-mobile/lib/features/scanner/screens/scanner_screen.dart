@@ -19,7 +19,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
   late AnimationController _scanAnimController;
   late Animation<double> _scanAnim;
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   void initState() {
@@ -356,7 +356,7 @@ class _CircleButton extends StatelessWidget {
 }
 
 class _OverlayPainter extends CustomPainter {
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   void paint(Canvas canvas, Size size) {

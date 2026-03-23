@@ -5,7 +5,7 @@ class ProductDetailScreen extends StatelessWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +261,7 @@ class _NutriscoreCard extends StatelessWidget {
   final String score;
   const _NutriscoreCard({required this.score});
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   Color _scoreColor(String s) {
     switch (s.toLowerCase()) {
@@ -293,7 +293,7 @@ class _NutriscoreCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFEA2E00), Color(0xFFFF6B35)],
+          colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -380,7 +380,7 @@ class _KeyNutritionCard extends StatelessWidget {
   final NutritionFacts nutrition;
   const _KeyNutritionCard({required this.nutrition});
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +449,7 @@ class _NutritionRow extends StatelessWidget {
     required this.sub,
   });
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -494,7 +494,7 @@ class _AllergenCard extends StatelessWidget {
   final List<String> allergens;
   const _AllergenCard({required this.allergens});
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -597,7 +597,7 @@ class _AIInsightsCard extends StatelessWidget {
           if (allergens.isNotEmpty)
             _InsightRow(
               emoji: '⚠',
-              color: const Color(0xFFEA2E00),
+              color: const Color(0xFFEC6F2D),
               label: 'Allergens:',
               text:
                   'Contains ${allergens.take(3).join(', ')}. Check with your health profile.',

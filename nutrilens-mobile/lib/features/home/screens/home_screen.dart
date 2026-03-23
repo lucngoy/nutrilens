@@ -6,7 +6,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFFEA2E00), Color(0xFFFF6B35)],
+                      colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
                     ),
                   ),
                   padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
@@ -89,7 +89,7 @@ class HomeScreen extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(vertical: 22),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFEA2E00), Color(0xFFFF6B35)],
+                            colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
                           ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
@@ -289,7 +289,7 @@ class HomeScreen extends ConsumerWidget {
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFFEA2E00), Color(0xFFFF6B35)],
+                          colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
@@ -329,7 +329,7 @@ class _QuickCard extends StatelessWidget {
     required this.onTap,
   });
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +384,7 @@ class _SummaryRow extends StatelessWidget {
     required this.progress,
   });
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -524,7 +524,7 @@ class _NavItem extends StatelessWidget {
     this.active = false,
   });
 
-  static const primaryColor = Color(0xFFEA2E00);
+  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {

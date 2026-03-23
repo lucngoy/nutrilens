@@ -2,7 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
-  static const String baseUrl = 'http://localhost:8000/api';
+  static const String baseUrl = 'http://172.20.18.123:8000/api';
+
   static const _storage = FlutterSecureStorage();
 
   static Dio get instance {
@@ -22,6 +23,8 @@ class ApiClient {
         return handler.next(options);
       },
       onError: (error, handler) {
+        print("❌ ERROR: ${error.message}");
+        print("❌ TYPE: ${error.type}");
         return handler.next(error);
       },
     ));
