@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/inventory/providers/inventory_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -11,6 +12,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authStateProvider).valueOrNull;
+    final inventoryState = ref.watch(inventoryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -121,23 +123,24 @@ class HomeScreen extends ConsumerWidget {
                     Row(
                         children: [
                             Expanded(
-                            child: _QuickCard(
-                                icon: Icons.inventory_2_outlined,
-                                label: 'Food Inventory',
-                                subtitle: '24 items',
-                                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Coming soon!'))),
-                            ),
+                                child: _QuickCard(
+                                    icon: Icons.inventory_2_outlined,
+                                    label: 'Food Inventory',
+                                    subtitle: inventoryState.whenOrNull(
+                                        data: (items) => '${items.length} items',
+                                        ) ?? '...',
+                                    onTap: () => context.push('/inventory'),
+                                ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                            child: _QuickCard(
-                                icon: Icons.account_balance_wallet_outlined,
-                                label: 'Budget',
-                                subtitle: '\$165 left',
-                                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Coming soon!'))),
-                            ),
+                                child: _QuickCard(
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    label: 'Budget',
+                                    subtitle: '\$165 left',
+                                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Coming soon!'))),
+                                ),
                             ),
                         ],
                     ),

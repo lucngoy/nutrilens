@@ -1,0 +1,16 @@
+from django.urls import path
+from .views import (
+    InventoryListView,
+    InventoryAddView,
+    InventoryUpdateView,
+    InventoryDeleteView,
+    ProductLookupView,
+)
+
+urlpatterns = [
+    path('', InventoryListView.as_view(), name='inventory-list'),
+    path('add/', InventoryAddView.as_view(), name='inventory-add'),
+    path('<int:pk>/update/', InventoryUpdateView.as_view(), name='inventory-update'),
+    path('<int:pk>/delete/', InventoryDeleteView.as_view(), name='inventory-delete'),
+    path('product/<str:barcode>/', ProductLookupView.as_view(), name='product-lookup'),
+]

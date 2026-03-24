@@ -1,14 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/product_model.dart';
+import '../../inventory/providers/inventory_provider.dart';
 
-class ProductDetailScreen extends StatelessWidget {
+class ProductDetailScreen extends ConsumerStatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
 
+  @override
+  ConsumerState<ProductDetailScreen> createState() =>
+      _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
+  bool _isAdding = false;
+
+  ProductModel get product => widget.product;
+
+  Future<void> _addToInventory() async {
+    setState(() => _isAdding = true);
+    try {
+      await ref.read(inventoryProvider.notifier).addProduct(widget.product);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Added to inventory!'),
+            backgroundColor: Colors.green),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isAdding = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       body: Stack(
@@ -199,33 +232,33 @@ class ProductDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 48,
                     child: OutlinedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Added to inventory!'),
-                              backgroundColor: Colors.green),
-                        );
-                        Navigator.pop(context);
-                      },
+                      onPressed: _isAdding ? null : _addToInventory,
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(
                             color: Color(0xFFEEEEEE), width: 1),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_shopping_cart,
-                              size: 18, color: Color(0xFF1A1A1A)),
-                          SizedBox(width: 8),
-                          Text('Add to Inventory',
-                              style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1A1A1A))),
-                        ],
-                      ),
+                      child: _isAdding
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF1A1A1A)))
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_shopping_cart,
+                                    size: 18, color: Color(0xFF1A1A1A)),
+                                SizedBox(width: 8),
+                                Text('Add to Inventory',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF1A1A1A))),
+                              ],
+                            ),
                     ),
                   ),
                 ],

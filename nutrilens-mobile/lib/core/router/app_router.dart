@@ -6,6 +6,7 @@ import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/scanner/screens/scanner_screen.dart';
+import '../../features/inventory/screens/inventory_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -41,6 +42,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/scanner',
           builder: (context, state) => const ScannerScreen()),
+      GoRoute(
+          path: '/inventory',
+          builder: (context, state) => const InventoryScreen()),
     ],
   );
 });

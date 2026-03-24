@@ -1,16 +1,13 @@
 import 'package:dio/dio.dart';
+import '../../../core/network/api_client.dart';
 import '../models/product_model.dart';
 
 class ProductService {
-  final _dio = Dio(BaseOptions(
-    baseUrl: 'https://world.openfoodfacts.org',
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
-  ));
+  final _dio = ApiClient.instance;
 
   Future<ProductModel?> getProductByBarcode(String barcode) async {
     try {
-      final response = await _dio.get('/api/v0/product/$barcode.json');
+      final response = await _dio.get('/inventory/product/$barcode/');
       final data = response.data;
 
       if (data['status'] != 1) return null;
