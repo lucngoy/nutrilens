@@ -28,19 +28,16 @@ class AuthService {
     required String password,
   }) async {
     try {
-      print('Attempting login for: $username');
       final response = await _dio.post('/users/login/', data: {
         'username': username,
         'password': password,
       });
-      print('Login response: ${response.data}');
+
       await StorageService.saveTokens(
         access: response.data['access'],
         refresh: response.data['refresh'],
       );
     } on DioException catch (e) {
-      print('Login error: ${e.response?.data}');
-      print('Status code: ${e.response?.statusCode}');
       throw _handleError(e);
     }
   }
@@ -56,6 +53,26 @@ class AuthService {
 
   Future<void> logout() async {
     await StorageService.clearTokens();
+  }
+
+  Future<bool> refreshToken() async {
+    try {
+      final refresh = await StorageService.getRefreshToken();
+      if (refresh == null) return false;
+
+      final response = await _dio.post('/users/token/refresh/', data: {
+        'refresh': refresh,
+      });
+
+      await StorageService.saveTokens(
+        access: response.data['access'],
+        refresh: refresh,
+      );
+      return true;
+    } on DioException {
+      await StorageService.clearTokens();
+      return false;
+    }
   }
 
     String _handleError(DioException e) {
