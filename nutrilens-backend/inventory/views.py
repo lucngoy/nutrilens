@@ -60,6 +60,16 @@ class InventoryUpdateView(generics.UpdateAPIView):
     def get_queryset(self):
         return InventoryItem.objects.filter(user=self.request.user)
 
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        quantity = request.data.get('quantity')
+        if quantity is not None:
+            instance.quantity = max(0, int(quantity))
+            instance.save()
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data)
+        return super().patch(request, *args, **kwargs)
+
 
 class InventoryDeleteView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]

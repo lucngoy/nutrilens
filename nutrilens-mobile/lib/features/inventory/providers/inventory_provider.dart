@@ -48,11 +48,7 @@ class InventoryNotifier
 
   Future<void> updateQuantity(int id, int quantity) async {
     try {
-      if (quantity <= 0) {
-        await deleteItem(id);
-        return;
-      }
-      final item = await _service.updateQuantity(id, quantity);
+      final item = await _service.updateQuantity(id, quantity < 0 ? 0 : quantity);
       final current = state.valueOrNull ?? [];
       final updated = current.map((i) => i.id == id ? item : i).toList();
       state = AsyncValue.data(updated);
