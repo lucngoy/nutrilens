@@ -3,6 +3,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
+import '../../../features/scanner/providers/scan_history_provider.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
@@ -40,6 +41,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
             final user = await _authService.getProfile();
             state = AsyncValue.data(user);
             _ref.read(inventoryProvider.notifier).fetchInventory();
+            _ref.read(scanHistoryProvider.notifier).fetchRecentScans(limit: 3);
         } catch (e) {
             state = const AsyncValue.data(null);
             rethrow;

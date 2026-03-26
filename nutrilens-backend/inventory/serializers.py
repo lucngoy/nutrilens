@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import InventoryItem
+from .models import InventoryItem, ScanHistory
 
 
 class InventoryItemSerializer(serializers.ModelSerializer):
@@ -16,3 +16,13 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ScanHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScanHistory
+        fields = [
+            'id', 'barcode', 'name', 'brand', 'image_url',
+            'nutriscore', 'calories', 'scanned_at'
+        ]
+        read_only_fields = ['id', 'scanned_at']

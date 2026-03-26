@@ -1,12 +1,13 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import InventoryItem
-from .serializers import InventoryItemSerializer
+from .models import InventoryItem, ScanHistory
+from .serializers import InventoryItemSerializer, ScanHistorySerializer
 import requests
 from django.http import JsonResponse
 
 
+# Inventory Views
 class InventoryListView(generics.ListAPIView):
     serializer_class = InventoryItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -100,3 +101,27 @@ class ProductLookupView(APIView):
             return JsonResponse({'error': 'Request timeout'}, status=408)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+        
+
+class ScanHistoryListView(generics.ListAPIView):
+    serializer_class = ScanHistorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        limit = self.request.query_params.get('limit', 10)
+        return ScanHistory.objects.filter(
+            user=self.request.user)[:int(limit)]
+
+
+# Scan History Views
+class ScanHistoryAddView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = ScanHistorySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data,
+                            status=status.HTTP_201_CREATED)
+        return Response(serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)

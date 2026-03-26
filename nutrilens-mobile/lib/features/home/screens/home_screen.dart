@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
+import '../../scanner/providers/scan_history_provider.dart';
+import '../../scanner/models/scan_history_model.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -13,6 +15,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authStateProvider).valueOrNull;
     final inventoryState = ref.watch(inventoryProvider);
+    final scanHistory = ref.watch(scanHistoryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -219,8 +222,7 @@ class HomeScreen extends ConsumerWidget {
                       child: Column(
                         children: [
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Recent Scans',
                                   style: TextStyle(
@@ -229,8 +231,7 @@ class HomeScreen extends ConsumerWidget {
                                       color: Color(0xFF1A1A1A))),
                               TextButton(
                                 onPressed: () {},
-                                style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero),
+                                style: TextButton.styleFrom(padding: EdgeInsets.zero),
                                 child: Text('View All',
                                     style: TextStyle(
                                         color: primaryColor,
@@ -240,18 +241,32 @@ class HomeScreen extends ConsumerWidget {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          _RecentScanItem(
-                              name: 'Organic Granola Bar',
-                              time: '2 hours ago',
-                              score: 'A'),
-                          _RecentScanItem(
-                              name: 'Greek Yogurt',
-                              time: 'Yesterday',
-                              score: 'A'),
-                          _RecentScanItem(
-                              name: 'Energy Drink',
-                              time: '2 days ago',
-                              score: 'D'),
+                          scanHistory.when(
+                            loading: () => const Center(
+                                child: CircularProgressIndicator(
+                                    color: primaryColor, strokeWidth: 2)),
+                            error: (_, __) => const Text('Unable to load scans',
+                                style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            data: (scans) {
+                              if (scans.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Text(
+                                      'No scans yet — scan your first product!',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          color: Colors.grey, fontSize: 13)),
+                                );
+                              }
+                              return Column(
+                                children: scans.take(3).map((scan) => _RecentScanItem(
+                                  name: scan.name,
+                                  time: _timeAgo(scan.scannedAt),
+                                  score: scan.nutriscore?.toUpperCase() ?? '?',
+                                )).toList(),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -320,6 +335,14 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _timeAgo(DateTime date) {
+  final diff = DateTime.now().difference(date);
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays == 1) return 'Yesterday';
+  return '${diff.inDays} days ago';
 }
 
 class _QuickCard extends StatelessWidget {

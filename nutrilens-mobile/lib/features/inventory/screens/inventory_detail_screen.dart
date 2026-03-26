@@ -81,7 +81,7 @@ class _InventoryDetailScreenState
                 leading: Padding(
                   padding: const EdgeInsets.only(left: 24),
                   child: GestureDetector(
-                    onTap: () => context.pop(),
+                    onTap: () => context.canPop() ? context.pop() : context.go('/inventory'),
                     child: Container(
                       decoration: BoxDecoration(
                         color: primaryColor.withOpacity(0.08),

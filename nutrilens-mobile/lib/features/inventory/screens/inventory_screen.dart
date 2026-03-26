@@ -318,7 +318,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       children: [
                         Row(children: [
                           GestureDetector(
-                            onTap: () => context.pop(),
+                            onTap: () => context.canPop() ? context.pop() : context.go('/home'),
                             child: Container(
                               width: 40,
                               height: 40,

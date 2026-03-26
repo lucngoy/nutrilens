@@ -38,7 +38,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => context.pop(),
+                    onTap: () => context.canPop() ? context.pop() : context.go('/home'),
                     child: Container(
                       width: 40,
                       height: 40,

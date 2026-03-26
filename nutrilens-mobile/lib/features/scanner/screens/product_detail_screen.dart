@@ -2,19 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/product_model.dart';
+import '../../scanner/providers/scan_history_provider.dart';
 
-class ProductDetailScreen extends StatefulWidget {
+class ProductDetailScreen extends ConsumerStatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
 
   @override
-  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+  ConsumerState<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
-class _ProductDetailScreenState extends State<ProductDetailScreen> {
+class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
 
   ProductModel get product => widget.product;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() =>
+        ref.read(scanHistoryProvider.notifier).addScan(widget.product));
+  }
 
   @override
   Widget build(BuildContext context) {

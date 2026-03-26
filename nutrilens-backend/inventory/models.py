@@ -68,3 +68,20 @@ class InventoryItem(models.Model):
     @property
     def is_low_stock(self):
         return self.quantity <= self.low_stock_threshold
+
+class ScanHistory(models.Model):
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='scan_history')
+    barcode = models.CharField(max_length=50)
+    name = models.CharField(max_length=255)
+    brand = models.CharField(max_length=255, blank=True, default='')
+    image_url = models.URLField(blank=True, default='')
+    nutriscore = models.CharField(max_length=1, blank=True, default='')
+    calories = models.FloatField(null=True, blank=True)
+    scanned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-scanned_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name} ({self.scanned_at})"
