@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
@@ -7,27 +8,37 @@ import '../../features/home/screens/home_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/scanner/screens/scanner_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/profile/screens/profile_screen.dart';
 import '../../features/inventory/screens/add_inventory_screen.dart';
 import '../../features/inventory/screens/inventory_detail_screen.dart';
 import '../../features/inventory/models/inventory_model.dart';
 import '../../features/scanner/models/product_model.dart';
 
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier(Ref ref) {
+    ref.listen(authStateProvider, (_, __) => notifyListeners());
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final notifier = _AuthNotifier(ref);
+  ref.onDispose(notifier.dispose);
 
   return GoRouter(
     initialLocation: '/onboarding',
+    refreshListenable: notifier,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final isLoading = authState.isLoading;
       final isLoggedIn = authState.valueOrNull != null;
-      final isAuthRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
-      final isOnboarding = state.matchedLocation == '/onboarding';
+      final location = state.matchedLocation;
+
+      final isAuthRoute = location == '/login' || location == '/register';
+      final isOnboarding = location == '/onboarding';
 
       if (isLoading) return null;
       if (isLoggedIn && (isAuthRoute || isOnboarding)) return '/home';
-      if (!isLoggedIn && (isAuthRoute || isOnboarding)) return null;
-      if (!isLoggedIn) return '/login';
+      if (!isLoggedIn && !isAuthRoute && !isOnboarding) return '/login';
       return null;
     },
     routes: [
@@ -55,6 +66,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             final product = state.extra as ProductModel;
             return AddInventoryScreen(product: product);
           }),
+      GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen()),
       GoRoute(
         path: '/inventory/:id',
         builder: (context, state) {

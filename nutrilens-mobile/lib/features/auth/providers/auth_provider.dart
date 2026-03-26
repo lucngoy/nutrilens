@@ -57,6 +57,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         }
     }
 
+    void updateUser(UserModel user) {
+        state = AsyncValue.data(user);
+    }
+
     Future<void> logout() async {
         await _authService.logout();
         _ref.invalidate(inventoryProvider);

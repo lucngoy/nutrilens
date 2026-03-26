@@ -55,6 +55,15 @@ class AuthService {
     await StorageService.clearTokens();
   }
 
+  Future<UserModel> updateProfile({required Map<String, dynamic> data}) async {
+    try {
+      final response = await _dio.patch('/users/profile/', data: data);
+      return UserModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<bool> refreshToken() async {
     try {
       final refresh = await StorageService.getRefreshToken();

@@ -308,7 +308,10 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                   _NavItem(icon: Icons.chat_bubble_outline, label: 'Chat'),
-                  _NavItem(icon: Icons.person_outline, label: 'Profile'),
+                  _NavItem(
+                      icon: Icons.person_outline,
+                      label: 'Profile',
+                      onTap: () => context.push('/profile')),
                 ],
               ),
             ),
@@ -520,18 +523,22 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
+  final VoidCallback? onTap;
 
   const _NavItem({
     required this.icon,
     required this.label,
     this.active = false,
+    this.onTap,
   });
 
   static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon,
@@ -545,6 +552,7 @@ class _NavItem extends StatelessWidget {
                     ? FontWeight.w600
                     : FontWeight.w400)),
       ],
+      ),
     );
   }
 }
