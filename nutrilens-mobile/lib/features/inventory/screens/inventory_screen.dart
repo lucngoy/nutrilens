@@ -191,7 +191,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final item = lowStock[i];
-                    return Container(
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/inventory/${item.id}', extra: item);
+                      },
+                      child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8F8F8),
@@ -249,7 +254,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                         ),
                       ]),
-                    );
+                    ));
                   },
                 ),
               ),
@@ -476,7 +481,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                   children: lowStock
                                       .take(_lowStockPreviewCount)
                                       .toList()
-                                      .map((item) => Container(
+                                      .map((item) => GestureDetector(
+                                            onTap: () => context.push(
+                                                '/inventory/${item.id}',
+                                                extra: item),
+                                            child: Container(
                                             margin: const EdgeInsets.only(
                                                 bottom: 8),
                                             padding:
@@ -550,7 +559,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                                 ),
                                               ),
                                             ]),
-                                          ))
+                                          )))
                                       .toList(),
                                 ),
                             ],
