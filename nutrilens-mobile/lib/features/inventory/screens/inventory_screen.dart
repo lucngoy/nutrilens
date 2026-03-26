@@ -17,6 +17,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
   final _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+        () => ref.read(inventoryProvider.notifier).fetchInventory());
+  }
   _SortOption _sortOption = _SortOption.nameAZ;
   static const _lowStockPreviewCount = 3;
 

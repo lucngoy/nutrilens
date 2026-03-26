@@ -15,9 +15,7 @@ class InventoryNotifier
     extends StateNotifier<AsyncValue<List<InventoryItem>>> {
   final InventoryService _service;
 
-  InventoryNotifier(this._service) : super(const AsyncValue.loading()) {
-    fetchInventory();
-  }
+  InventoryNotifier(this._service) : super(const AsyncValue.data([]));
 
   Future<void> fetchInventory() async {
     state = const AsyncValue.loading();
