@@ -17,12 +17,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  late String _inventoryType;
 
   @override
   void initState() {
     super.initState();
+    _inventoryType = ref.read(inventoryTypeProvider);
     Future.microtask(
-        () => ref.read(inventoryProvider.notifier).fetchInventory());
+        () => ref.read(inventoryProvider.notifier).fetchInventory(type: _inventoryType));
   }
   _SortOption _sortOption = _SortOption.nameAZ;
   static const _lowStockPreviewCount = 3;
@@ -385,6 +387,101 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                    // Personal / Family toggle
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F0F0),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _inventoryType = 'personal');
+                                ref.read(inventoryTypeProvider.notifier).state = 'personal';
+                                ref.read(inventoryProvider.notifier).fetchInventory(type: 'personal');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _inventoryType == 'personal'
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _inventoryType == 'personal'
+                                      ? [BoxShadow(
+                                          color: Colors.black.withOpacity(0.06),
+                                          blurRadius: 4)]
+                                      : [],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.person_outline,
+                                        size: 16,
+                                        color: _inventoryType == 'personal'
+                                            ? primaryColor
+                                            : Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Text('Personal',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _inventoryType == 'personal'
+                                                ? primaryColor
+                                                : Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _inventoryType = 'family');
+                                ref.read(inventoryTypeProvider.notifier).state = 'family';
+                                ref.read(inventoryProvider.notifier).fetchInventory(type: 'family');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _inventoryType == 'family'
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _inventoryType == 'family'
+                                      ? [BoxShadow(
+                                          color: Colors.black.withOpacity(0.06),
+                                          blurRadius: 4)]
+                                      : [],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.group_outlined,
+                                        size: 16,
+                                        color: _inventoryType == 'family'
+                                            ? primaryColor
+                                            : Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Text('Family',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _inventoryType == 'family'
+                                                ? primaryColor
+                                                : Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     // Search bar
                     TextField(
                       controller: _searchController,

@@ -13,7 +13,11 @@ class InventoryListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return InventoryItem.objects.filter(user=self.request.user)
+        inventory_type = self.request.query_params.get('type', None)
+        queryset = InventoryItem.objects.filter(user=self.request.user)
+        if inventory_type in ['personal', 'family']:
+            queryset = queryset.filter(inventory_type=inventory_type)
+        return queryset
 
 
 class InventoryAddView(APIView):
@@ -25,9 +29,12 @@ class InventoryAddView(APIView):
             return Response({'error': 'Barcode is required'},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        inventory_type = request.data.get('inventory_type', 'personal')
+
         item, created = InventoryItem.objects.get_or_create(
             user=request.user,
             barcode=barcode,
+            inventory_type=inventory_type,
             defaults={
                 'name': request.data.get('name', 'Unknown'),
                 'brand': request.data.get('brand', ''),

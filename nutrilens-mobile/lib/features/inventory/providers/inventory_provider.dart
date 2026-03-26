@@ -6,6 +6,8 @@ import '../../scanner/models/product_model.dart';
 final inventoryServiceProvider =
     Provider<InventoryService>((ref) => InventoryService());
 
+final inventoryTypeProvider = StateProvider<String>((ref) => 'personal');
+
 final inventoryProvider =
     StateNotifierProvider<InventoryNotifier, AsyncValue<List<InventoryItem>>>(
   (ref) => InventoryNotifier(ref.read(inventoryServiceProvider)),
@@ -17,15 +19,15 @@ class InventoryNotifier
 
   InventoryNotifier(this._service) : super(const AsyncValue.data([]));
 
-  Future<void> fetchInventory() async {
-    state = const AsyncValue.loading();
-    try {
-      final items = await _service.getInventory();
-      state = AsyncValue.data(items);
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    Future<void> fetchInventory({String? type}) async {
+        state = const AsyncValue.loading();
+        try {
+            final items = await _service.getInventory(type: type);
+            state = AsyncValue.data(items);
+        } catch (e) {
+            state = AsyncValue.error(e, StackTrace.current);
+        }
     }
-  }
 
   Future<void> addProduct(
     ProductModel product, {
@@ -35,6 +37,7 @@ class InventoryNotifier
     String storageLocation = '',
     DateTime? expirationDate,
     String notes = '',
+    String inventoryType = 'personal',
   }) async {
     try {
       final item = await _service.addProduct(
@@ -45,6 +48,7 @@ class InventoryNotifier
         storageLocation: storageLocation,
         expirationDate: expirationDate,
         notes: notes,
+        inventoryType: inventoryType,
       );
       final current = state.valueOrNull ?? [];
       final index = current.indexWhere((i) => i.barcode == item.barcode);

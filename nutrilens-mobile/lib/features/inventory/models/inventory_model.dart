@@ -21,6 +21,7 @@ class InventoryItem {
   final String storageLocation;
   final DateTime? expirationDate;
   final String notes;
+  final String inventoryType;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -47,6 +48,7 @@ class InventoryItem {
     this.storageLocation = '',
     this.expirationDate,
     this.notes = '',
+    this.inventoryType = 'personal',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -77,6 +79,7 @@ class InventoryItem {
           ? DateTime.parse(json['expiration_date'])
           : null,
       notes: json['notes'] ?? '',
+      inventoryType: json['inventory_type'] ?? 'personal',
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -97,6 +100,7 @@ class InventoryItem {
       'fiber': fiber,
       'protein': protein,
       'salt': salt,
+      'inventory_type': inventoryType,
     };
   }
 }

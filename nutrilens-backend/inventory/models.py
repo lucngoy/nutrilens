@@ -2,6 +2,12 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+INVENTORY_TYPE_CHOICES = [
+    ('personal', 'Personal'),
+    ('family', 'Family'),
+]
+
+
 class InventoryItem(models.Model):
 
     CATEGORY_CHOICES = [
@@ -24,6 +30,11 @@ class InventoryItem(models.Model):
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='inventory')
+    inventory_type = models.CharField(
+        max_length=10,
+        choices=INVENTORY_TYPE_CHOICES,
+        default='personal',
+    )
 
     # Product info from Open Food Facts
     barcode = models.CharField(max_length=50)
@@ -59,7 +70,7 @@ class InventoryItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['user', 'barcode']
+        unique_together = ['user', 'barcode', 'inventory_type']
         ordering = ['-updated_at']
 
     def __str__(self):

@@ -6,9 +6,12 @@ import '../../scanner/models/product_model.dart';
 class InventoryService {
   final _dio = ApiClient.instance;
 
-  Future<List<InventoryItem>> getInventory() async {
+  Future<List<InventoryItem>> getInventory({String? type}) async {
     try {
-      final response = await _dio.get('/inventory/');
+      final response = await _dio.get(
+        '/inventory/',
+        queryParameters: type != null ? {'type': type} : null,
+      );
       return (response.data as List)
           .map((item) => InventoryItem.fromJson(item))
           .toList();
@@ -25,6 +28,7 @@ class InventoryService {
     String storageLocation = '',
     DateTime? expirationDate,
     String notes = '',
+    String inventoryType = 'personal',
   }) async {
     try {
       final response = await _dio.post('/inventory/add/', data: {
@@ -47,6 +51,7 @@ class InventoryService {
         'storage_location': storageLocation,
         'expiration_date': expirationDate?.toIso8601String().split('T')[0],
         'notes': notes,
+        'inventory_type': inventoryType,
       });
       return InventoryItem.fromJson(response.data);
     } on DioException catch (e) {

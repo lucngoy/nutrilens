@@ -23,6 +23,7 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
   String _selectedStorage = '';
   DateTime? _expirationDate;
   bool _isLoading = false;
+  String _inventoryType = 'personal';
 
   final _units = ['pieces', 'kg', 'g', 'liters', 'ml', 'cups', 'packs'];
   final _categories = [
@@ -70,8 +71,12 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
         storageLocation: _selectedStorage,
         expirationDate: _expirationDate,
         notes: _notesController.text,
+        inventoryType: _inventoryType,
       );
-      if (mounted) context.go('/inventory');
+      if (mounted) {
+        ref.read(inventoryTypeProvider.notifier).state = _inventoryType;
+        context.go('/inventory');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -331,6 +336,96 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                             const BorderSide(color: primaryColor, width: 1.5),
                       ),
                       contentPadding: const EdgeInsets.all(16),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Inventory type toggle
+                  _Label('Inventory Type'),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F0F0),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _inventoryType = 'personal'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _inventoryType == 'personal'
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _inventoryType == 'personal'
+                                    ? [BoxShadow(
+                                        color: Colors.black.withOpacity(0.06),
+                                        blurRadius: 4)]
+                                    : [],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_outline,
+                                      size: 16,
+                                      color: _inventoryType == 'personal'
+                                          ? primaryColor
+                                          : Colors.grey),
+                                  const SizedBox(width: 6),
+                                  Text('Personal',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: _inventoryType == 'personal'
+                                              ? primaryColor
+                                              : Colors.grey)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _inventoryType = 'family'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _inventoryType == 'family'
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: _inventoryType == 'family'
+                                    ? [BoxShadow(
+                                        color: Colors.black.withOpacity(0.06),
+                                        blurRadius: 4)]
+                                    : [],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.group_outlined,
+                                      size: 16,
+                                      color: _inventoryType == 'family'
+                                          ? primaryColor
+                                          : Colors.grey),
+                                  const SizedBox(width: 6),
+                                  Text('Family',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: _inventoryType == 'family'
+                                              ? primaryColor
+                                              : Colors.grey)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 100),
