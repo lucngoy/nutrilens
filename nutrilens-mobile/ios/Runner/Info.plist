@@ -67,7 +67,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>NutriLens needs camera access to scan product barcodes.</string>
+	<string>NutriLens needs camera access to scan product barcodes and take your profile photo</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NutriLens needs photo library access to choose your profile photo</string>
 
 	<key>NSAppTransportSecurity</key>
 	<dict>

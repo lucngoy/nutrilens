@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/storage_service.dart';
@@ -59,6 +60,22 @@ class AuthService {
     try {
       final response = await _dio.patch('/users/profile/', data: data);
       return UserModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<UserModel> uploadAvatar(File imageFile) async {
+    try {
+      final formData = FormData.fromMap({
+        'avatar': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: 'avatar.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      });
+      await _dio.patch('/users/profile/avatar/', data: formData);
+      return await getProfile();
     } on DioException catch (e) {
       throw _handleError(e);
     }

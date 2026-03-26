@@ -8,6 +8,7 @@ class UserProfile {
   final bool hasHypertension;
   final bool isCeliac;
   final String allergies;
+  final String? avatar;
   final double? bmi;
 
   UserProfile({
@@ -20,6 +21,7 @@ class UserProfile {
     required this.hasHypertension,
     required this.isCeliac,
     required this.allergies,
+    this.avatar,
     this.bmi,
   });
 
@@ -36,6 +38,7 @@ class UserProfile {
       hasHypertension: json['has_hypertension'],
       isCeliac: json['is_celiac'],
       allergies: json['allergies'],
+      avatar: json['avatar'],
       bmi: json['bmi']?.toDouble(),
     );
   }

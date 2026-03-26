@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
+import '../../../core/network/api_client.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -64,25 +67,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Column(
                 children: [
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
-                      ),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: primaryColor.withOpacity(0.2), width: 3),
-                    ),
-                    child: Center(
-                      child: Text(
-                        user.username[0].toUpperCase(),
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w700),
-                      ),
+                  GestureDetector(
+                    onTap: _pickAndUploadAvatar,
+                    behavior: HitTestBehavior.opaque,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: primaryColor.withOpacity(0.2), width: 3),
+                          ),
+                          child: ClipOval(
+                            child: profile.avatar != null && profile.avatar!.isNotEmpty
+                                ? Image.network(
+                                    profile.avatar!.startsWith('http')
+                                        ? profile.avatar!
+                                        : '${ApiClient.baseUrl.replaceAll('/api', '')}${profile.avatar!}',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _buildAvatarFallback(user),
+                                  )
+                                : _buildAvatarFallback(user),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: primaryColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(Icons.camera_alt,
+                                color: Colors.white, size: 13),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -312,6 +338,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Widget _buildAvatarFallback(UserModel user) {
+    return Container(
+      color: primaryColor,
+      child: Center(
+        child: Text(
+          user.username[0].toUpperCase(),
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 36,
+              fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      final updatedUser = await authService.uploadAvatar(File(picked.path));
+      ref.read(authStateProvider.notifier).updateUser(updatedUser);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   // Edit Personal Info bottom sheet
   void _showEditPersonalInfo(BuildContext context, UserModel user) {
     final usernameController =
@@ -351,7 +410,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                          content: Text('Updated!'),
+                          content: Text('Profile updated!'),
                           backgroundColor: Colors.green));
                 },
                 style: ElevatedButton.styleFrom(

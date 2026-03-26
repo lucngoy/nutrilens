@@ -11,7 +11,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'date_of_birth', 'weight', 'height', 'goal',
             'is_diabetic', 'has_hypertension', 'is_celiac',
-            'allergies', 'bmi', 'created_at', 'updated_at'
+            'allergies', 'avatar', 'bmi', 'created_at', 'updated_at'
         ]
 
 
