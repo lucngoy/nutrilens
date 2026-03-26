@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
+import '../../../core/network/api_client.dart';
 import '../../scanner/providers/scan_history_provider.dart';
 import '../../scanner/models/scan_history_model.dart';
 
@@ -33,17 +34,13 @@ class HomeScreen extends ConsumerWidget {
                       colors: [Color(0xFFEC6F2D), Color(0xFFFF6B35)],
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 76, 24, 46),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.asset('assets/images/logo.png',
-                                width: 40, height: 40, fit: BoxFit.cover),
-                          ),
+                          _buildUserAvatar(user?.profile.avatar, user?.username),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +227,7 @@ class HomeScreen extends ConsumerWidget {
                                       fontWeight: FontWeight.w700,
                                       color: Color(0xFF1A1A1A))),
                               TextButton(
-                                onPressed: () {},
+                                onPressed: () => _showScanHistorySheet(context, ref),
                                 style: TextButton.styleFrom(padding: EdgeInsets.zero),
                                 child: Text('View All',
                                     style: TextStyle(
@@ -263,6 +260,8 @@ class HomeScreen extends ConsumerWidget {
                                   name: scan.name,
                                   time: _timeAgo(scan.scannedAt),
                                   score: scan.nutriscore?.toUpperCase() ?? '?',
+                                  imageUrl: scan.imageUrl,
+                                  brand: scan.brand,
                                 )).toList(),
                               );
                             },
@@ -334,6 +333,217 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+Widget _buildUserAvatar(String? avatar, String? username) {
+  final initial = username != null && username.isNotEmpty
+      ? username[0].toUpperCase()
+      : '?';
+  return Container(
+    width: 54,
+    height: 54,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+    ),
+    child: ClipOval(
+      child: avatar != null && avatar.isNotEmpty
+          ? Image.network(
+              avatar.startsWith('http')
+                  ? avatar
+                  : '${ApiClient.baseUrl.replaceAll('/api', '')}$avatar',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildInitialAvatar(initial),
+            )
+          : _buildInitialAvatar(initial),
+    ),
+  );
+}
+
+Widget _buildInitialAvatar(String initial) {
+  return Container(
+    color: Colors.white.withOpacity(0.25),
+    child: Center(
+      child: Text(initial,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700)),
+    ),
+  );
+}
+
+void _showScanHistorySheet(BuildContext context, WidgetRef ref) {
+  ref.read(scanHistoryProvider.notifier).fetchRecentScans(limit: 50);
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, controller) => Consumer(
+        builder: (context, ref, _) {
+          final scanHistory = ref.watch(scanHistoryProvider);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDDDDDD),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Scan History',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1A1A1A))),
+                    scanHistory.whenOrNull(
+                          data: (scans) => Text('${scans.length} scans',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.grey)),
+                        ) ??
+                        const SizedBox(),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFF0F0F0)),
+              Expanded(
+                child: scanHistory.when(
+                  loading: () => const Center(
+                      child: CircularProgressIndicator(
+                          color: HomeScreen.primaryColor, strokeWidth: 2)),
+                  error: (_, __) => const Center(
+                      child: Text('Unable to load history',
+                          style: TextStyle(color: Colors.grey))),
+                  data: (scans) {
+                    if (scans.isEmpty) {
+                      return const Center(
+                          child: Text('No scans yet',
+                              style: TextStyle(color: Colors.grey)));
+                    }
+                    return ListView.separated(
+                      controller: controller,
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                      itemCount: scans.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final scan = scans[i];
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F8F8),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFEEEEEE)),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: scan.imageUrl != null
+                                    ? Image.network(
+                                        scan.imageUrl!,
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            _buildScanPlaceholder(),
+                                      )
+                                    : _buildScanPlaceholder(),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(scan.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1A1A1A))),
+                                    if (scan.brand.isNotEmpty)
+                                      Text(scan.brand,
+                                          style: const TextStyle(
+                                              fontSize: 11, color: Colors.grey)),
+                                    Text(_timeAgo(scan.scannedAt),
+                                        style: const TextStyle(
+                                            fontSize: 11, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                              if (scan.nutriscore != null)
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: _scoreColor(
+                                        scan.nutriscore!.toUpperCase()),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      scan.nutriscore!.toUpperCase(),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+Widget _buildScanPlaceholder() {
+  return Container(
+    width: 48,
+    height: 48,
+    decoration: BoxDecoration(
+      color: const Color(0xFFEEEEEE),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: const Icon(Icons.fastfood_rounded, color: Colors.grey, size: 20),
+  );
+}
+
+Color _scoreColor(String s) {
+  switch (s.toUpperCase()) {
+    case 'A': return const Color(0xFF1E8449);
+    case 'B': return const Color(0xFF58D68D);
+    case 'C': return const Color(0xFFF4D03F);
+    case 'D': return const Color(0xFFE67E22);
+    case 'E': return const Color(0xFFE74C3C);
+    default: return Colors.grey;
   }
 }
 
@@ -466,11 +676,15 @@ class _RecentScanItem extends StatelessWidget {
   final String name;
   final String time;
   final String score;
+  final String? imageUrl;
+  final String? brand;
 
   const _RecentScanItem({
     required this.name,
     required this.time,
     required this.score,
+    this.imageUrl,
+    this.brand,
   });
 
   Color _scoreColor(String s) {
@@ -495,15 +709,17 @@ class _RecentScanItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.fastfood,
-                color: Colors.grey, size: 24),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: imageUrl != null && imageUrl!.isNotEmpty
+                ? Image.network(
+                    imageUrl!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildScanPlaceholder(),
+                  )
+                : _buildScanPlaceholder(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -511,10 +727,18 @@ class _RecentScanItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF1A1A1A))),
+                if (brand != null && brand!.isNotEmpty)
+                  Text(brand!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.grey)),
                 Text(time,
                     style: const TextStyle(
                         fontSize: 11, color: Colors.grey)),
