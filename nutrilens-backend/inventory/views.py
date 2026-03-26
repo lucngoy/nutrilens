@@ -40,11 +40,17 @@ class InventoryAddView(APIView):
                 'fiber': request.data.get('fiber'),
                 'protein': request.data.get('protein'),
                 'salt': request.data.get('salt'),
+                'quantity': request.data.get('quantity', 1),
+                'unit': request.data.get('unit', 'pieces'),
+                'category': request.data.get('category', ''),
+                'storage_location': request.data.get('storage_location', ''),
+                'expiration_date': request.data.get('expiration_date'),
+                'notes': request.data.get('notes', ''),
             }
         )
 
         if not created:
-            item.quantity += 1
+            item.quantity += int(request.data.get('quantity', 1))
             item.save()
 
         serializer = InventoryItemSerializer(item)
@@ -65,10 +71,12 @@ class InventoryUpdateView(generics.UpdateAPIView):
         quantity = request.data.get('quantity')
         if quantity is not None:
             instance.quantity = max(0, int(quantity))
-            instance.save()
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data)
-        return super().patch(request, *args, **kwargs)
+        for field in ('unit', 'category', 'storage_location', 'expiration_date', 'notes'):
+            if field in request.data:
+                setattr(instance, field, request.data[field])
+        instance.save()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
 
 class InventoryDeleteView(generics.DestroyAPIView):

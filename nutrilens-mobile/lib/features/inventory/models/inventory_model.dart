@@ -17,6 +17,10 @@ class InventoryItem {
   final String unit;
   final int lowStockThreshold;
   final bool isLowStock;
+  final String category;
+  final String storageLocation;
+  final DateTime? expirationDate;
+  final String notes;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -39,6 +43,10 @@ class InventoryItem {
     required this.unit,
     required this.lowStockThreshold,
     required this.isLowStock,
+    this.category = '',
+    this.storageLocation = '',
+    this.expirationDate,
+    this.notes = '',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -63,6 +71,12 @@ class InventoryItem {
       unit: json['unit'],
       lowStockThreshold: json['low_stock_threshold'],
       isLowStock: json['is_low_stock'],
+      category: json['category'] ?? '',
+      storageLocation: json['storage_location'] ?? '',
+      expirationDate: json['expiration_date'] != null
+          ? DateTime.parse(json['expiration_date'])
+          : null,
+      notes: json['notes'] ?? '',
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );

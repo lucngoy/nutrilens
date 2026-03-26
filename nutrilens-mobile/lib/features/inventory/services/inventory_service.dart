@@ -17,7 +17,15 @@ class InventoryService {
     }
   }
 
-  Future<InventoryItem> addProduct(ProductModel product) async {
+  Future<InventoryItem> addProduct(
+    ProductModel product, {
+    int quantity = 1,
+    String unit = 'pieces',
+    String category = '',
+    String storageLocation = '',
+    DateTime? expirationDate,
+    String notes = '',
+  }) async {
     try {
       final response = await _dio.post('/inventory/add/', data: {
         'barcode': product.barcode,
@@ -33,6 +41,12 @@ class InventoryService {
         'fiber': product.nutrition.fiber,
         'protein': product.nutrition.protein,
         'salt': product.nutrition.salt,
+        'quantity': quantity,
+        'unit': unit,
+        'category': category,
+        'storage_location': storageLocation,
+        'expiration_date': expirationDate?.toIso8601String().split('T')[0],
+        'notes': notes,
       });
       return InventoryItem.fromJson(response.data);
     } on DioException catch (e) {

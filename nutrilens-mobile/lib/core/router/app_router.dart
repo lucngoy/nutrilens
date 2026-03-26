@@ -7,6 +7,8 @@ import '../../features/home/screens/home_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/scanner/screens/scanner_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/inventory/screens/add_inventory_screen.dart';
+import '../../features/scanner/models/product_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -45,6 +47,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/inventory',
           builder: (context, state) => const InventoryScreen()),
+      GoRoute(
+          path: '/inventory/add',
+          builder: (context, state) {
+            final product = state.extra as ProductModel;
+            return AddInventoryScreen(product: product);
+          }),
     ],
   );
 });

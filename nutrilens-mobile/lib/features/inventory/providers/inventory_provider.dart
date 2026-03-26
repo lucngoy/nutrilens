@@ -27,9 +27,25 @@ class InventoryNotifier
     }
   }
 
-  Future<void> addProduct(ProductModel product) async {
+  Future<void> addProduct(
+    ProductModel product, {
+    int quantity = 1,
+    String unit = 'pieces',
+    String category = '',
+    String storageLocation = '',
+    DateTime? expirationDate,
+    String notes = '',
+  }) async {
     try {
-      final item = await _service.addProduct(product);
+      final item = await _service.addProduct(
+        product,
+        quantity: quantity,
+        unit: unit,
+        category: category,
+        storageLocation: storageLocation,
+        expirationDate: expirationDate,
+        notes: notes,
+      );
       final current = state.valueOrNull ?? [];
       final index = current.indexWhere((i) => i.barcode == item.barcode);
       if (index >= 0) {
