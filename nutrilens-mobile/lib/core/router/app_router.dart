@@ -8,6 +8,8 @@ import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/scanner/screens/scanner_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
 import '../../features/inventory/screens/add_inventory_screen.dart';
+import '../../features/inventory/screens/inventory_detail_screen.dart';
+import '../../features/inventory/models/inventory_model.dart';
 import '../../features/scanner/models/product_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -53,6 +55,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             final product = state.extra as ProductModel;
             return AddInventoryScreen(product: product);
           }),
+      GoRoute(
+        path: '/inventory/:id',
+        builder: (context, state) {
+            final item = state.extra as InventoryItem;
+            return InventoryDetailScreen(item: item);
+        },),
     ],
   );
 });

@@ -585,6 +585,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           itemBuilder: (_, i) => _InventoryCard(
                             item: filtered[i],
                             primaryColor: primaryColor,
+                            onTap: () => context.push('/inventory/${filtered[i].id}', extra: filtered[i]),
                             onIncrement: () => ref
                                 .read(inventoryProvider.notifier)
                                 .updateQuantity(filtered[i].id,
@@ -650,6 +651,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 class _InventoryCard extends StatelessWidget {
   final InventoryItem item;
   final Color primaryColor;
+  final VoidCallback onTap;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
@@ -657,6 +659,7 @@ class _InventoryCard extends StatelessWidget {
   const _InventoryCard({
     required this.item,
     required this.primaryColor,
+    required this.onTap,
     required this.onIncrement,
     required this.onDecrement,
     required this.onDelete,
@@ -830,18 +833,20 @@ class _InventoryCard extends StatelessWidget {
           ],
         ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(item.quantity == 0 || item.isLowStock ? 0.08 : 0.0),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withOpacity(item.quantity == 0 || item.isLowStock ? 0.08 : 0.0),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -1065,6 +1070,7 @@ class _InventoryCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 
