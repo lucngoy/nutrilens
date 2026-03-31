@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
 import '../../../features/scanner/providers/scan_history_provider.dart';
+import '../../../core/services/notification_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
@@ -26,7 +27,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
       try {
         final user = await _authService.getProfile();
         state = AsyncValue.data(user);
-        _ref.read(inventoryProvider.notifier).fetchInventory();
+        _ref.read(inventoryProvider.notifier).fetchInventory().then((_) {
+          final items = _ref.read(inventoryProvider).valueOrNull ?? [];
+          NotificationService.checkInventoryAlerts(items);
+        });
       } catch (_) {
         state = const AsyncValue.data(null);
       }
@@ -40,7 +44,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
             await _authService.login(username: username, password: password);
             final user = await _authService.getProfile();
             state = AsyncValue.data(user);
-            _ref.read(inventoryProvider.notifier).fetchInventory();
+            _ref.read(inventoryProvider.notifier).fetchInventory().then((_) {
+              final items = _ref.read(inventoryProvider).valueOrNull ?? [];
+              NotificationService.checkInventoryAlerts(items);
+            });
             _ref.read(scanHistoryProvider.notifier).fetchRecentScans(limit: 3);
         } catch (e) {
             state = const AsyncValue.data(null);

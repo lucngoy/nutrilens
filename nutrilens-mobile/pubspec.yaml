@@ -52,6 +52,12 @@ dependencies:
   # Image picking
   image_picker: ^1.1.2
 
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+
+  # Date & Time handling
+  timezone: ^0.9.4
+
 
 
 dev_dependencies:
