@@ -54,11 +54,17 @@ class InventoryAddView(APIView):
                 'storage_location': request.data.get('storage_location', ''),
                 'expiration_date': request.data.get('expiration_date'),
                 'notes': request.data.get('notes', ''),
+                'consumption_per_use': request.data.get('consumption_per_use'),
+                'uses_per_week': request.data.get('uses_per_week'),
             }
         )
 
         if not created:
             item.quantity += int(request.data.get('quantity', 1))
+            if request.data.get('consumption_per_use') is not None:
+                item.consumption_per_use = request.data.get('consumption_per_use')
+            if request.data.get('uses_per_week') is not None:
+                item.uses_per_week = request.data.get('uses_per_week')
             item.save()
 
         serializer = InventoryItemSerializer(item)
@@ -79,7 +85,7 @@ class InventoryUpdateView(generics.UpdateAPIView):
         quantity = request.data.get('quantity')
         if quantity is not None:
             instance.quantity = max(0, int(quantity))
-        for field in ('unit', 'category', 'storage_location', 'expiration_date', 'notes'):
+        for field in ('unit', 'category', 'storage_location', 'expiration_date', 'notes', 'consumption_per_use', 'uses_per_week'):
             if field in request.data:
                 setattr(instance, field, request.data[field])
         instance.save()

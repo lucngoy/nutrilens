@@ -1078,6 +1078,29 @@ class _InventoryCard extends StatelessWidget {
                                         ],
                                       ),
                                     ),
+                                    if (item.daysRemaining != null) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: item.daysRemaining! <= 3
+                                              ? Colors.red.withOpacity(0.1)
+                                              : Colors.grey.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          '~${item.daysRemaining!.toStringAsFixed(0)}d',
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: item.daysRemaining! <= 3
+                                                  ? Colors.red
+                                                  : Colors.grey),
+                                        ),
+                                      ),
+                                    ],
                                     if (item.calories != null) ...[
                                       const SizedBox(width: 6),
                                       Text(

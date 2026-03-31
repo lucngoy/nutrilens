@@ -38,6 +38,8 @@ class InventoryNotifier
     DateTime? expirationDate,
     String notes = '',
     String inventoryType = 'personal',
+    double? consumptionPerUse,
+    double? usesPerWeek,
   }) async {
     try {
       final item = await _service.addProduct(
@@ -49,6 +51,8 @@ class InventoryNotifier
         expirationDate: expirationDate,
         notes: notes,
         inventoryType: inventoryType,
+        consumptionPerUse: consumptionPerUse,
+        usesPerWeek: usesPerWeek,
       );
       final current = state.valueOrNull ?? [];
       final index = current.indexWhere((i) => i.barcode == item.barcode);

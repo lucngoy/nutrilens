@@ -262,7 +262,10 @@ class _InventoryDetailScreenState
                       // Infos inventaire (category, storage, expiry)
                       if (item.category.isNotEmpty ||
                           item.storageLocation.isNotEmpty ||
-                          item.expirationDate != null)
+                          item.expirationDate != null ||
+                          item.daysRemaining != null ||
+                          item.dailyConsumption != null ||
+                          item.notes.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -296,6 +299,25 @@ class _InventoryDetailScreenState
                                     value:
                                         '${item.expirationDate!.day}/${item.expirationDate!.month}/${item.expirationDate!.year}',
                                     valueColor: _expiryColor(item)),
+                              if (item.daysRemaining != null)
+                                _InfoRow(
+                                  icon: Icons.timer_outlined,
+                                  label: 'Stock Duration',
+                                  value: item.daysRemaining! <= 1
+                                      ? 'Less than 1 day'
+                                      : '~${item.daysRemaining!.toStringAsFixed(0)} days left',
+                                  valueColor: item.daysRemaining! <= 3
+                                      ? Colors.red
+                                      : item.daysRemaining! <= 7
+                                          ? Colors.orange
+                                          : const Color(0xFF27AE60),
+                                ),
+                              if (item.dailyConsumption != null)
+                                _InfoRow(
+                                  icon: Icons.trending_down_outlined,
+                                  label: 'Daily Usage',
+                                  value: '${item.dailyConsumption!.toStringAsFixed(1)} ${item.unit}/day',
+                                ),
                               if (item.notes.isNotEmpty)
                                 _InfoRow(
                                     icon: Icons.notes_outlined,

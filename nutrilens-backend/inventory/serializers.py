@@ -14,9 +14,12 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             'low_stock_threshold', 'is_low_stock',
             'category', 'storage_location', 'expiration_date', 'notes',
             'inventory_type',
+            'consumption_per_use', 'uses_per_week',
+            'daily_consumption', 'days_remaining',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at',
+                            'daily_consumption', 'days_remaining']
 
 
 class ScanHistorySerializer(serializers.ModelSerializer):

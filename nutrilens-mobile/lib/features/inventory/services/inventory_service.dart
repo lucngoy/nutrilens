@@ -29,6 +29,8 @@ class InventoryService {
     DateTime? expirationDate,
     String notes = '',
     String inventoryType = 'personal',
+    double? consumptionPerUse,
+    double? usesPerWeek,
   }) async {
     try {
       final response = await _dio.post('/inventory/add/', data: {
@@ -52,6 +54,8 @@ class InventoryService {
         'expiration_date': expirationDate?.toIso8601String().split('T')[0],
         'notes': notes,
         'inventory_type': inventoryType,
+        'consumption_per_use': consumptionPerUse,
+        'uses_per_week': usesPerWeek,
       });
       return InventoryItem.fromJson(response.data);
     } on DioException catch (e) {

@@ -22,6 +22,10 @@ class InventoryItem {
   final DateTime? expirationDate;
   final String notes;
   final String inventoryType;
+  final double? consumptionPerUse;
+  final double? usesPerWeek;
+  final double? dailyConsumption;
+  final double? daysRemaining;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -49,6 +53,10 @@ class InventoryItem {
     this.expirationDate,
     this.notes = '',
     this.inventoryType = 'personal',
+    this.consumptionPerUse,
+    this.usesPerWeek,
+    this.dailyConsumption,
+    this.daysRemaining,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -80,6 +88,10 @@ class InventoryItem {
           : null,
       notes: json['notes'] ?? '',
       inventoryType: json['inventory_type'] ?? 'personal',
+      consumptionPerUse: json['consumption_per_use']?.toDouble(),
+      usesPerWeek: json['uses_per_week']?.toDouble(),
+      dailyConsumption: json['daily_consumption']?.toDouble(),
+      daysRemaining: json['days_remaining']?.toDouble(),
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -101,6 +113,8 @@ class InventoryItem {
       'protein': protein,
       'salt': salt,
       'inventory_type': inventoryType,
+      'consumption_per_use': consumptionPerUse,
+      'uses_per_week': usesPerWeek,
     };
   }
 }

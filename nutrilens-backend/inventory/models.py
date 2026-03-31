@@ -66,6 +66,10 @@ class InventoryItem(models.Model):
     expiration_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
 
+    # Consumption planning
+    consumption_per_use = models.FloatField(null=True, blank=True)
+    uses_per_week = models.FloatField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -77,7 +81,23 @@ class InventoryItem(models.Model):
         return f"{self.user.username} - {self.name} ({self.quantity})"
 
     @property
+    def daily_consumption(self):
+        """Estimated daily consumption."""
+        if self.consumption_per_use and self.uses_per_week:
+            return (self.consumption_per_use * self.uses_per_week) / 7
+        return None
+
+    @property
+    def days_remaining(self):
+        """Estimated days before stock runs out."""
+        if self.daily_consumption and self.daily_consumption > 0:
+            return round(self.quantity / self.daily_consumption, 1)
+        return None
+
+    @property
     def is_low_stock(self):
+        if self.days_remaining is not None:
+            return self.days_remaining <= 3
         return self.quantity <= self.low_stock_threshold
 
 class ScanHistory(models.Model):

@@ -17,6 +17,8 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
 
   final _quantityController = TextEditingController(text: '1');
   final _notesController = TextEditingController();
+  final _consumptionController = TextEditingController();
+  final _usesPerWeekController = TextEditingController();
 
   String _selectedUnit = 'pieces';
   String _selectedCategory = '';
@@ -39,6 +41,8 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
   void dispose() {
     _quantityController.dispose();
     _notesController.dispose();
+    _consumptionController.dispose();
+    _usesPerWeekController.dispose();
     super.dispose();
   }
 
@@ -72,6 +76,8 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
         expirationDate: _expirationDate,
         notes: _notesController.text,
         inventoryType: _inventoryType,
+        consumptionPerUse: double.tryParse(_consumptionController.text),
+        usesPerWeek: double.tryParse(_usesPerWeekController.text),
       );
       if (mounted) {
         ref.read(inventoryTypeProvider.notifier).state = _inventoryType;
@@ -336,6 +342,48 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                             const BorderSide(color: primaryColor, width: 1.5),
                       ),
                       contentPadding: const EdgeInsets.all(16),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Consumption planning
+                  _Label('Consumption Planning (Optional)'),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFEEEEEE)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _InputField(
+                                controller: _consumptionController,
+                                hint: 'Amount per use',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _InputField(
+                                controller: _usesPerWeekController,
+                                hint: 'Times per week',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Example: 200 amount, 3 times/week',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 20),
