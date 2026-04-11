@@ -58,6 +58,9 @@ dependencies:
   # Date & Time handling
   timezone: ^0.9.4
 
+  # Charts
+  fl_chart: ^0.69.0
+
 
 
 dev_dependencies:

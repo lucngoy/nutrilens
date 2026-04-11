@@ -13,4 +13,5 @@ def create_health_snapshot(sender, instance, created, **kwargs):
             weight=instance.weight,
             bmi=instance.bmi,
             daily_calorie_target=instance.daily_calorie_target,
+            source='auto',
         )

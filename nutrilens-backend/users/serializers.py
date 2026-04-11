@@ -81,7 +81,7 @@ class HealthSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = HealthSnapshot
         fields = ['id', 'weight', 'bmi', 'daily_calorie_target',
-                  'notes', 'recorded_at']
+                  'notes', 'source', 'recorded_at']
         read_only_fields = ['id', 'recorded_at']
 
 

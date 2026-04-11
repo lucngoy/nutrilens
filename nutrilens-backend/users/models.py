@@ -170,12 +170,19 @@ class UserProfile(models.Model):
 
 class HealthSnapshot(models.Model):
     """Periodic health measurement — used to track history (NL-28) and baseline (NL-31)."""
+    SOURCE_CHOICES = [
+        ('auto', 'Auto'),
+        ('manual', 'Manual'),
+    ]
+
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='health_snapshots')
     weight = models.FloatField(null=True, blank=True)
     bmi = models.FloatField(null=True, blank=True)
     daily_calorie_target = models.FloatField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
+    source = models.CharField(
+        max_length=10, choices=SOURCE_CHOICES, default='manual')
     recorded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
