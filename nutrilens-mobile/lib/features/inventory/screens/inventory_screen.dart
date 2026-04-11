@@ -193,11 +193,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final item = lowStock[i];
-                    return GestureDetector(
+                    return InkWell(
                       onTap: () {
                         Navigator.pop(context);
                         context.push('/inventory/${item.id}', extra: item);
                       },
+                      borderRadius: BorderRadius.circular(14),
                       child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -578,10 +579,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                   children: lowStock
                                       .take(_lowStockPreviewCount)
                                       .toList()
-                                      .map((item) => GestureDetector(
+                                      .map((item) => InkWell(
                                             onTap: () => context.push(
                                                 '/inventory/${item.id}',
                                                 extra: item),
+                                            borderRadius: BorderRadius.circular(14),
                                             child: Container(
                                             margin: const EdgeInsets.only(
                                                 bottom: 8),
@@ -939,8 +941,9 @@ class _InventoryCard extends StatelessWidget {
           ],
         ),
       ),
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1227,8 +1230,9 @@ class _PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         width: 32,
         height: 32,
