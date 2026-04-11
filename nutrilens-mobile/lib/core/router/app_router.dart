@@ -10,6 +10,8 @@ import '../../features/scanner/screens/scanner_screen.dart';
 import '../../features/inventory/screens/inventory_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/health/screens/health_profile_screen.dart';
+import '../../features/health/screens/health_history_screen.dart';
+import '../../features/scanner/screens/scan_history_screen.dart';
 import '../../features/inventory/screens/add_inventory_screen.dart';
 import '../../features/inventory/screens/inventory_detail_screen.dart';
 import '../../features/inventory/models/inventory_model.dart';
@@ -73,6 +75,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/health-profile',
           builder: (context, state) => const HealthProfileScreen()),
+      GoRoute(
+          path: '/health-history',
+          builder: (context, state) => const HealthHistoryScreen()),
+      GoRoute(
+          path: '/history',
+          builder: (context, state) => const ScanHistoryScreen()),
       GoRoute(
         path: '/inventory/:id',
         builder: (context, state) {

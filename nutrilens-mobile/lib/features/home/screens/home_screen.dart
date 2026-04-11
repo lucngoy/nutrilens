@@ -227,7 +227,7 @@ class HomeScreen extends ConsumerWidget {
                                       fontWeight: FontWeight.w700,
                                       color: Color(0xFF1A1A1A))),
                               TextButton(
-                                onPressed: () => _showScanHistorySheet(context, ref),
+                                onPressed: () => context.push('/history'),
                                 style: TextButton.styleFrom(padding: EdgeInsets.zero),
                                 child: Text('View All',
                                     style: TextStyle(
@@ -295,7 +295,10 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.home_rounded,
                       label: 'Home',
                       active: true),
-                  _NavItem(icon: Icons.history, label: 'History'),
+                  _NavItem(
+                      icon: Icons.history,
+                      label: 'History',
+                      onTap: () => context.push('/history')),
                   // Scanner central button
                   GestureDetector(
                     onTap: () => context.push('/scanner'),
@@ -374,155 +377,6 @@ Widget _buildInitialAvatar(String initial) {
   );
 }
 
-void _showScanHistorySheet(BuildContext context, WidgetRef ref) {
-  ref.read(scanHistoryProvider.notifier).fetchRecentScans(limit: 50);
-
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.white,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (_) => DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      expand: false,
-      builder: (_, controller) => Consumer(
-        builder: (context, ref, _) {
-          final scanHistory = ref.watch(scanHistoryProvider);
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDDDDDD),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Scan History',
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A1A))),
-                    scanHistory.whenOrNull(
-                          data: (scans) => Text('${scans.length} scans',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.grey)),
-                        ) ??
-                        const SizedBox(),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFF0F0F0)),
-              Expanded(
-                child: scanHistory.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator(
-                          color: HomeScreen.primaryColor, strokeWidth: 2)),
-                  error: (_, __) => const Center(
-                      child: Text('Unable to load history',
-                          style: TextStyle(color: Colors.grey))),
-                  data: (scans) {
-                    if (scans.isEmpty) {
-                      return const Center(
-                          child: Text('No scans yet',
-                              style: TextStyle(color: Colors.grey)));
-                    }
-                    return ListView.separated(
-                      controller: controller,
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-                      itemCount: scans.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) {
-                        final scan = scans[i];
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8F8F8),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFEEEEEE)),
-                          ),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: scan.imageUrl != null
-                                    ? Image.network(
-                                        scan.imageUrl!,
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            _buildScanPlaceholder(),
-                                      )
-                                    : _buildScanPlaceholder(),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(scan.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF1A1A1A))),
-                                    if (scan.brand.isNotEmpty)
-                                      Text(scan.brand,
-                                          style: const TextStyle(
-                                              fontSize: 11, color: Colors.grey)),
-                                    Text(_timeAgo(scan.scannedAt),
-                                        style: const TextStyle(
-                                            fontSize: 11, color: Colors.grey)),
-                                  ],
-                                ),
-                              ),
-                              if (scan.nutriscore != null)
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: _scoreColor(
-                                        scan.nutriscore!.toUpperCase()),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      scan.nutriscore!.toUpperCase(),
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
-  );
-}
 
 Widget _buildScanPlaceholder() {
   return Container(

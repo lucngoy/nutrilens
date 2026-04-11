@@ -314,6 +314,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onTap: () => context.push('/health-profile'),
                   ),
                   _MenuItem(
+                    icon: Icons.history,
+                    label: 'Health History',
+                    description: 'Weight, BMI & calorie tracking over time',
+                    onTap: () => context.push('/health-history'),
+                  ),
+                  _MenuItem(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
                     description: 'Push notifications, reminders',
