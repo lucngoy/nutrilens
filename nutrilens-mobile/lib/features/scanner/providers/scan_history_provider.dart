@@ -14,7 +14,9 @@ class ScanHistoryNotifier
     extends StateNotifier<AsyncValue<List<ScanHistoryItem>>> {
   final ScanHistoryService _service;
 
-  ScanHistoryNotifier(this._service) : super(const AsyncValue.data([]));
+  ScanHistoryNotifier(this._service) : super(const AsyncValue.loading()) {
+    fetchRecentScans();
+  }
 
   Future<void> fetchRecentScans({int limit = 10}) async {
     // Don't flash a spinner if we already have data — just silently refresh

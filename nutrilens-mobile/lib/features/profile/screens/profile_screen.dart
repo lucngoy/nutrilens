@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
+import '../../health/providers/health_provider.dart';
 import '../../../core/network/api_client.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -17,13 +18,17 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
+  bool _uploadingAvatar = false;
+  File? _pendingAvatar;
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).valueOrNull;
     if (user == null) return const SizedBox();
 
-    final profile = user.profile;
+    final healthState = ref.watch(healthProfileProvider);
+    final healthProfile = healthState.valueOrNull;
+    final isHealthLoading = healthState.isLoading;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -68,7 +73,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 children: [
                   GestureDetector(
-                    onTap: _pickAndUploadAvatar,
+                    onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
                     behavior: HitTestBehavior.opaque,
                     child: Stack(
                       clipBehavior: Clip.none,
@@ -82,32 +87,53 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 color: primaryColor.withOpacity(0.2), width: 3),
                           ),
                           child: ClipOval(
-                            child: profile.avatar != null && profile.avatar!.isNotEmpty
-                                ? Image.network(
-                                    profile.avatar!.startsWith('http')
-                                        ? profile.avatar!
-                                        : '${ApiClient.baseUrl.replaceAll('/api', '')}${profile.avatar!}',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildAvatarFallback(user),
-                                  )
-                                : _buildAvatarFallback(user),
+                            child: _pendingAvatar != null
+                                ? Image.file(_pendingAvatar!, fit: BoxFit.cover)
+                                : user.profile.avatar != null && user.profile.avatar!.isNotEmpty
+                                    ? Image.network(
+                                        user.profile.avatar!.startsWith('http')
+                                            ? user.profile.avatar!
+                                            : '${ApiClient.baseUrl.replaceAll('/api', '')}${user.profile.avatar!}',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => _buildAvatarFallback(user),
+                                      )
+                                    : _buildAvatarFallback(user),
                           ),
                         ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: primaryColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                        if (_uploadingAvatar)
+                          Positioned.fill(
+                            child: ClipOval(
+                              child: Container(
+                                color: Colors.black.withOpacity(0.45),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                            child: const Icon(Icons.camera_alt,
-                                color: Colors.white, size: 13),
                           ),
-                        ),
+                        if (!_uploadingAvatar)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 13),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -124,27 +150,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
 
                   // Goal badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(20),
+                  if (healthProfile != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_goalIcon(healthProfile.goal),
+                              size: 16, color: primaryColor),
+                          const SizedBox(width: 6),
+                          Text(_goalLabel(healthProfile.goal),
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryColor)),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_goalIcon(profile.goal),
-                            size: 16, color: primaryColor),
-                        const SizedBox(width: 6),
-                        Text(_goalLabel(profile.goal),
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: primaryColor)),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -164,44 +191,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           color: Colors.grey,
                           letterSpacing: 0.08)),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: _StatCard(
-                              label: 'Weight',
-                              value: profile.weight != null
-                                  ? '${profile.weight!.toStringAsFixed(1)} kg'
-                                  : '—',
-                              icon: Icons.monitor_weight_outlined)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: _StatCard(
-                              label: 'Height',
-                              value: profile.height != null
-                                  ? '${profile.height!.toStringAsFixed(0)} cm'
-                                  : '—',
-                              icon: Icons.height)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: _StatCard(
-                              label: 'BMI',
-                              value: profile.bmi != null
-                                  ? profile.bmi!.toStringAsFixed(1)
-                                  : '—',
-                              icon: Icons.analytics_outlined,
-                              valueColor: _bmiColor(profile.bmi))),
-                    ],
-                  ),
+                  if (isHealthLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: primaryColor,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                            child: _StatCard(
+                                label: 'Weight',
+                                value: healthProfile?.weight != null
+                                    ? '${healthProfile!.weight!.toStringAsFixed(1)} kg'
+                                    : '—',
+                                icon: Icons.monitor_weight_outlined)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: _StatCard(
+                                label: 'Height',
+                                value: healthProfile?.height != null
+                                    ? '${healthProfile!.height!.toStringAsFixed(0)} cm'
+                                    : '—',
+                                icon: Icons.height)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: _StatCard(
+                                label: 'BMI',
+                                value: healthProfile?.bmi != null
+                                    ? healthProfile!.bmi!.toStringAsFixed(1)
+                                    : '—',
+                                icon: Icons.analytics_outlined,
+                                valueColor: _bmiColor(healthProfile?.bmi))),
+                      ],
+                    ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
             // Conditions médicales
-            if (profile.isDiabetic ||
-                profile.hasHypertension ||
-                profile.isCeliac ||
-                profile.allergies.isNotEmpty)
+            if (healthProfile != null &&
+                (healthProfile.isDiabetic ||
+                    healthProfile.hasHypertension ||
+                    healthProfile.isCeliac ||
+                    healthProfile.allergies.isNotEmpty))
               Container(
                 width: double.infinity,
                 color: Colors.white,
@@ -220,14 +263,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (profile.isDiabetic)
+                        if (healthProfile.isDiabetic)
                           _ConditionBadge(label: 'Diabetic'),
-                        if (profile.hasHypertension)
+                        if (healthProfile.hasHypertension)
                           _ConditionBadge(label: 'Hypertension'),
-                        if (profile.isCeliac)
+                        if (healthProfile.isCeliac)
                           _ConditionBadge(label: 'Celiac'),
-                        if (profile.allergies.isNotEmpty)
-                          ...profile.allergies
+                        if (healthProfile.allergies.isNotEmpty)
+                          ...healthProfile.allergies
                               .split(',')
                               .where((a) => a.trim().isNotEmpty)
                               .map((a) => _ConditionBadge(
@@ -237,10 +280,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
               ),
-            if (profile.isDiabetic ||
-                profile.hasHypertension ||
-                profile.isCeliac ||
-                profile.allergies.isNotEmpty)
+            if (healthProfile != null &&
+                (healthProfile.isDiabetic ||
+                    healthProfile.hasHypertension ||
+                    healthProfile.isCeliac ||
+                    healthProfile.allergies.isNotEmpty))
               const SizedBox(height: 12),
 
             // Settings menu
@@ -267,7 +311,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.eco_outlined,
                     label: 'Health Preferences',
                     description: 'Goal, weight, height, conditions',
-                    onTap: () => _showEditHealthPrefs(context, profile),
+                    onTap: () => context.push('/health-profile'),
                   ),
                   _MenuItem(
                     icon: Icons.notifications_outlined,
@@ -359,15 +403,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         source: ImageSource.gallery, imageQuality: 80);
     if (picked == null) return;
 
+    final file = File(picked.path);
+    setState(() {
+      _uploadingAvatar = true;
+      _pendingAvatar = file;
+    });
+
     try {
+      final user = ref.read(authStateProvider).valueOrNull;
+      // Evict old avatar from Flutter's image cache
+      if (user?.profile.avatar != null && user!.profile.avatar!.isNotEmpty) {
+        final oldUrl = user.profile.avatar!.startsWith('http')
+            ? user.profile.avatar!
+            : '${ApiClient.baseUrl.replaceAll('/api', '')}${user.profile.avatar!}';
+        NetworkImage(oldUrl).evict();
+      }
+
       final authService = ref.read(authServiceProvider);
-      final updatedUser = await authService.uploadAvatar(File(picked.path));
+      final updatedUser = await authService.uploadAvatar(file);
       ref.read(authStateProvider.notifier).updateUser(updatedUser);
     } catch (e) {
       if (mounted) {
+        setState(() => _pendingAvatar = null);
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
       }
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
     }
   }
 
@@ -430,210 +492,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
     );
-  }
-
-  // Edit Health Preferences bottom sheet
-  void _showEditHealthPrefs(BuildContext context, UserProfile profile) {
-    final weightController = TextEditingController(
-        text: profile.weight?.toString() ?? '');
-    final heightController = TextEditingController(
-        text: profile.height?.toString() ?? '');
-    final allergiesController =
-        TextEditingController(text: profile.allergies);
-    String selectedGoal = profile.goal;
-    bool isDiabetic = profile.isDiabetic;
-    bool hasHypertension = profile.hasHypertension;
-    bool isCeliac = profile.isCeliac;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => StatefulBuilder(
-        builder: (context, setModalState) => SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-              24,
-              24,
-              24,
-              MediaQuery.of(context).viewInsets.bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Health Preferences',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 20),
-
-              // Goal selector
-              const Text('Goal',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A))),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  'lose_weight',
-                  'gain_muscle',
-                  'maintain',
-                  'eat_healthy'
-                ].map((g) {
-                  final selected = selectedGoal == g;
-                  return GestureDetector(
-                    onTap: () =>
-                        setModalState(() => selectedGoal = g),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? primaryColor
-                            : const Color(0xFFF5F5F5),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(_goalLabel(g),
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: selected
-                                  ? Colors.white
-                                  : const Color(0xFF1A1A1A))),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-
-              // Weight + Height
-              Row(children: [
-                Expanded(
-                    child: _EditField(
-                        controller: weightController,
-                        label: 'Weight (kg)',
-                        keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _EditField(
-                        controller: heightController,
-                        label: 'Height (cm)',
-                        keyboardType: TextInputType.number)),
-              ]),
-              const SizedBox(height: 16),
-
-              // Conditions
-              const Text('Medical Conditions',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A))),
-              const SizedBox(height: 8),
-              _SwitchRow(
-                  label: 'Diabetic',
-                  value: isDiabetic,
-                  onChanged: (v) =>
-                      setModalState(() => isDiabetic = v)),
-              _SwitchRow(
-                  label: 'Hypertension',
-                  value: hasHypertension,
-                  onChanged: (v) =>
-                      setModalState(() => hasHypertension = v)),
-              _SwitchRow(
-                  label: 'Celiac',
-                  value: isCeliac,
-                  onChanged: (v) =>
-                      setModalState(() => isCeliac = v)),
-              const SizedBox(height: 16),
-
-              // Allergies
-              _EditField(
-                  controller: allergiesController,
-                  label: 'Allergies (comma separated)',
-                  hint: 'e.g. nuts, dairy, gluten'),
-              const SizedBox(height: 20),
-
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    await _saveHealthPrefs(
-                      context: context,
-                      goal: selectedGoal,
-                      weight: double.tryParse(weightController.text),
-                      height: double.tryParse(heightController.text),
-                      isDiabetic: isDiabetic,
-                      hasHypertension: hasHypertension,
-                      isCeliac: isCeliac,
-                      allergies: allergiesController.text,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
-                  ),
-                  child: const Text('Save',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveHealthPrefs({
-    required BuildContext context,
-    required String goal,
-    double? weight,
-    double? height,
-    required bool isDiabetic,
-    required bool hasHypertension,
-    required bool isCeliac,
-    required String allergies,
-  }) async {
-    try {
-      final authService = ref.read(authServiceProvider);
-      await authService.updateProfile(data: {
-        'profile': {
-          'goal': goal,
-          'weight': weight,
-          'height': height,
-          'is_diabetic': isDiabetic,
-          'has_hypertension': hasHypertension,
-          'is_celiac': isCeliac,
-          'allergies': allergies,
-        }
-      });
-
-      final updatedUser = await authService.getProfile();
-
-      if (context.mounted) Navigator.pop(context);
-
-      ref.read(authStateProvider.notifier).updateUser(updatedUser);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Profile updated!'),
-            backgroundColor: Colors.green));
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString()),
-                backgroundColor: Colors.red));
-      }
-    }
   }
 
   IconData _goalIcon(String goal) {
@@ -861,38 +719,6 @@ class _EditField extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _SwitchRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 14, color: Color(0xFF1A1A1A))),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: const Color(0xFFEC6F2D),
-          ),
-        ],
-      ),
     );
   }
 }
