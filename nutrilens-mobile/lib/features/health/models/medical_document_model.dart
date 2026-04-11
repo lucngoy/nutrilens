@@ -26,6 +26,17 @@ class MedicalDocument {
     );
   }
 
+  MedicalDocument copyWith({String? title, String? notes}) {
+    return MedicalDocument(
+      id: id,
+      title: title ?? this.title,
+      documentType: documentType,
+      file: file,
+      notes: notes ?? this.notes,
+      uploadedAt: uploadedAt,
+    );
+  }
+
   String get documentTypeLabel {
     switch (documentType) {
       case 'blood_test': return 'Blood Test';

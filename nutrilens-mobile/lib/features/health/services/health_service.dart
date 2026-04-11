@@ -101,6 +101,18 @@ class HealthService {
     }
   }
 
+  Future<MedicalDocument> updateDocument(int id, {required String title, required String notes}) async {
+    try {
+      final response = await _dio.patch(
+        '/users/health/documents/$id/',
+        data: {'title': title, 'notes': notes},
+      );
+      return MedicalDocument.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<void> deleteDocument(int id) async {
     try {
       await _dio.delete('/users/health/documents/$id/');

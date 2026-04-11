@@ -3,7 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, ProfileView, AvatarUploadView, TokenObtainPairView,
     HealthSnapshotListView, MedicalDocumentListView,
-    MedicalDocumentUploadView, MedicalDocumentDeleteView,
+    MedicalDocumentUploadView, MedicalDocumentDetailView,
 )
 
 urlpatterns = [
@@ -19,5 +19,5 @@ urlpatterns = [
     # Medical documents (NL-29, NL-30)
     path('health/documents/', MedicalDocumentListView.as_view(), name='medical_documents'),
     path('health/documents/upload/', MedicalDocumentUploadView.as_view(), name='medical_document_upload'),
-    path('health/documents/<int:pk>/', MedicalDocumentDeleteView.as_view(), name='medical_document_delete'),
+    path('health/documents/<int:pk>/', MedicalDocumentDetailView.as_view(), name='medical_document_detail'),
 ]

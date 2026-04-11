@@ -83,8 +83,10 @@ class MedicalDocumentUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class MedicalDocumentDeleteView(generics.DestroyAPIView):
+class MedicalDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MedicalDocumentSerializer
+    http_method_names = ['get', 'patch', 'delete']
 
     def get_queryset(self):
         return MedicalDocument.objects.filter(user=self.request.user)

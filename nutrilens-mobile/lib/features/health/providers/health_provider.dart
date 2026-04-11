@@ -134,6 +134,17 @@ class MedicalDocumentsNotifier
     }
   }
 
+  Future<void> updateDocument(int id, {required String title, required String notes}) async {
+    try {
+      final updated = await _service.updateDocument(id, title: title, notes: notes);
+      final current = state.valueOrNull ?? [];
+      state = AsyncValue.data(
+          current.map((d) => d.id == id ? updated : d).toList());
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<void> deleteDocument(int id) async {
     try {
       await _service.deleteDocument(id);

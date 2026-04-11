@@ -227,6 +227,7 @@ class _MedicalDocumentsScreenState
                           ),
                           child: _DocumentCard(
                             doc: filtered[i],
+                            onEdit: () => _showEditSheet(context, filtered[i]),
                             onDelete: () => _confirmDelete(context, filtered[i]),
                           ),
                         ),
@@ -271,6 +272,101 @@ class _MedicalDocumentsScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditSheet(BuildContext context, MedicalDocument doc) {
+    final titleController = TextEditingController(text: doc.title);
+    final notesController = TextEditingController(text: doc.notes);
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 12, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFDDDDDD),
+                        borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 20),
+              const Text('Edit Document',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleController,
+                decoration: _inputDecoration('Title'),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: notesController,
+                decoration: _inputDecoration('Notes (optional)'),
+                maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final title = titleController.text.trim();
+                          if (title.isEmpty) return;
+                          setModalState(() => isSaving = true);
+                          try {
+                            await ref
+                                .read(medicalDocumentsProvider.notifier)
+                                .updateDocument(doc.id,
+                                    title: title,
+                                    notes: notesController.text.trim());
+                            if (context.mounted) Navigator.pop(ctx);
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(e.toString()),
+                                  backgroundColor: Colors.red));
+                            }
+                          } finally {
+                            setModalState(() => isSaving = false);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Save',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -622,9 +718,10 @@ class _MedicalDocumentsScreenState
 
 class _DocumentCard extends StatelessWidget {
   final MedicalDocument doc;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _DocumentCard({required this.doc, required this.onDelete});
+  const _DocumentCard({required this.doc, required this.onEdit, required this.onDelete});
 
   static const primaryColor = Color(0xFFEC6F2D);
 
@@ -700,6 +797,22 @@ class _DocumentCard extends StatelessWidget {
             ),
           ),
 
+          // Edit
+          InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.edit_outlined,
+                  color: Color(0xFF4A6CF7), size: 16),
+            ),
+          ),
+          const SizedBox(width: 6),
           // Delete
           InkWell(
             onTap: onDelete,
