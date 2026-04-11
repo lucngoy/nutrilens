@@ -4,6 +4,7 @@ from .views import (
     RegisterView, ProfileView, AvatarUploadView, TokenObtainPairView,
     HealthSnapshotListView, MedicalDocumentListView,
     MedicalDocumentUploadView, MedicalDocumentDetailView,
+    ProductAnalysisView,
 )
 
 urlpatterns = [
@@ -20,4 +21,7 @@ urlpatterns = [
     path('health/documents/', MedicalDocumentListView.as_view(), name='medical_documents'),
     path('health/documents/upload/', MedicalDocumentUploadView.as_view(), name='medical_document_upload'),
     path('health/documents/<int:pk>/', MedicalDocumentDetailView.as_view(), name='medical_document_detail'),
+
+    # Product analysis — NL-23 to NL-26
+    path('health/analyze/', ProductAnalysisView.as_view(), name='product_analysis'),
 ]

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/product_model.dart';
+import '../models/analysis_model.dart';
+import '../providers/analysis_provider.dart';
 import '../../scanner/providers/scan_history_provider.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
@@ -9,7 +11,8 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
   const ProductDetailScreen({super.key, required this.product});
 
   @override
-  ConsumerState<ProductDetailScreen> createState() => _ProductDetailScreenState();
+  ConsumerState<ProductDetailScreen> createState() =>
+      _ProductDetailScreenState();
 }
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
@@ -24,17 +27,17 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        ref.read(scanHistoryProvider.notifier).addScan(widget.product));
+    Future.microtask(() {
+      ref.read(scanHistoryProvider.notifier).addScan(widget.product);
+      ref.read(analysisProvider.notifier).analyze(widget.product);
+    });
     _scrollController.addListener(_onScroll);
   }
 
   void _onScroll() {
-    final collapsed = _scrollController.offset >
-        _expandedHeight - kToolbarHeight - 16;
-    if (collapsed != _isCollapsed) {
-      setState(() => _isCollapsed = collapsed);
-    }
+    final collapsed =
+        _scrollController.offset > _expandedHeight - kToolbarHeight - 16;
+    if (collapsed != _isCollapsed) setState(() => _isCollapsed = collapsed);
   }
 
   @override
@@ -46,11 +49,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final product = widget.product;
+    final analysisState = ref.watch(analysisProvider);
     final hasImage = product.imageUrl != null && product.imageUrl!.isNotEmpty;
 
-    // When expanded over an image: white icons. When collapsed: dark/orange.
-    final iconColor = (!_isCollapsed && hasImage) ? Colors.white : primaryColor;
+    final iconColor =
+        (!_isCollapsed && hasImage) ? Colors.white : primaryColor;
     final iconBg = (!_isCollapsed && hasImage)
         ? Colors.black.withOpacity(0.25)
         : primaryColor.withOpacity(0.08);
@@ -64,73 +67,58 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           CustomScrollView(
             controller: _scrollController,
             slivers: [
-                // App Bar
-                SliverAppBar(
-                    expandedHeight: _expandedHeight,
-                    pinned: true,
-                    backgroundColor: Colors.white,
-                    elevation: 0,
-                    leadingWidth: 64,
-
-                    leading: Padding(
-                        padding: const EdgeInsets.only(left: 24),
-                        child: GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                            decoration: BoxDecoration(
-                            color: iconBg,
-                            shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                            Icons.chevron_left,
-                            color: iconColor,
-                            size: 24,
-                            ),
-                        ),
-                        ),
+              SliverAppBar(
+                expandedHeight: _expandedHeight,
+                pinned: true,
+                backgroundColor: Colors.white,
+                elevation: 0,
+                leadingWidth: 64,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 24),
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      decoration: BoxDecoration(
+                          color: iconBg, shape: BoxShape.circle),
+                      child: Icon(Icons.chevron_left,
+                          color: iconColor, size: 24),
                     ),
-
-                    title: Text(
-                        'Product Analysis',
-                        style: TextStyle(
+                  ),
+                ),
+                title: Text('Product Analysis',
+                    style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: titleColor,
-                        ),
-                    ),
-                    centerTitle: true,
-
-                    flexibleSpace: FlexibleSpaceBar(
-                        collapseMode: CollapseMode.parallax,
-                        background: product.imageUrl != null
-                            ? Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                Image.network(
-                                    product.imageUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                        color: titleColor)),
+                centerTitle: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  collapseMode: CollapseMode.parallax,
+                  background: product.imageUrl != null
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(product.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildPlaceholder()),
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.2),
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.3),
+                                  ],
                                 ),
-
-                                // 👇 petit overlay pour lisibilité (effet premium)
-                                Container(
-                                    decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                        Colors.black.withOpacity(0.2),
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(0.3),
-                                        ],
-                                    ),
-                                    ),
-                                ),
-                                ],
-                            )
-                            : _buildPlaceholder(),
-                    ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : _buildPlaceholder(),
                 ),
+              ),
 
               SliverToBoxAdapter(
                 child: Padding(
@@ -138,7 +126,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Product name & brand
+                      // Name & brand
                       Text(product.name,
                           style: const TextStyle(
                               fontSize: 22,
@@ -152,23 +140,35 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ],
                       const SizedBox(height: 16),
 
-                      // Nutriscore card
+                      // Nutriscore
                       if (product.nutriscore != null) ...[
                         _NutriscoreCard(score: product.nutriscore!),
                         const SizedBox(height: 16),
                       ],
 
-                      // Warning badges
-                      if (_getWarnings().isNotEmpty) ...[
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _getWarnings()
-                              .map((w) => _WarningBadge(label: w))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                      // NutriLens Analysis (NL-23/24/25/26)
+                      analysisState.when(
+                        loading: () => _AnalysisLoadingCard(),
+                        error: (_, __) => const SizedBox.shrink(),
+                        data: (result) => result == null
+                            ? const SizedBox.shrink()
+                            : Column(
+                                children: [
+                                  _NutriLensScoreCard(result: result),
+                                  const SizedBox(height: 16),
+                                  if (result.warnings.isNotEmpty) ...[
+                                    _WarningsCard(warnings: result.warnings),
+                                    const SizedBox(height: 16),
+                                  ],
+                                  if (result.recommendations.isNotEmpty) ...[
+                                    _RecommendationsCard(
+                                        recommendations:
+                                            result.recommendations),
+                                    const SizedBox(height: 16),
+                                  ],
+                                ],
+                              ),
+                      ),
 
                       // Key nutrition facts
                       _KeyNutritionCard(nutrition: product.nutrition),
@@ -180,18 +180,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // AI Health Insights
-                      _AIInsightsCard(
-                          nutrition: product.nutrition,
-                          allergens: product.allergens,
-                          nutriscore: product.nutriscore),
-                      const SizedBox(height: 16),
-
-                      // Ingredients
-                      if (product.ingredients.isNotEmpty) ...[
-                        _IngredientsCard(
-                            ingredients: product.ingredients),
-                      ],
+                      // Ingredients (highlighted)
+                      if (product.ingredients.isNotEmpty)
+                        analysisState.when(
+                          loading: () => _IngredientsCard(
+                              ingredients: product.ingredients,
+                              highlighted: const []),
+                          error: (_, __) => _IngredientsCard(
+                              ingredients: product.ingredients,
+                              highlighted: const []),
+                          data: (result) => _IngredientsCard(
+                              ingredients: product.ingredients,
+                              highlighted:
+                                  result?.highlightedIngredients ?? const []),
+                        ),
                     ],
                   ),
                 ),
@@ -208,20 +210,22 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(
-                    top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
+                border:
+                    Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Ask AI button
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () => ScaffoldMessenger.of(context)
-                          .showSnackBar(const SnackBar(
-                              content: Text('AI Assistant coming in Sprint 3!'))),
+                      onPressed: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('AI Assistant coming in Sprint 3!')),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
@@ -236,14 +240,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           SizedBox(width: 8),
                           Text('Ask AI Assistant',
                               style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600)),
+                                  fontSize: 15, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Add to inventory button
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -280,25 +282,274 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  List<String> _getWarnings() {
-    final warnings = <String>[];
-    final n = product.nutrition;
-    if (n.sugar != null && n.sugar! > 15) warnings.add('High Sugar');
-    if (n.saturatedFat != null && n.saturatedFat! > 5)
-      warnings.add('High Saturated Fat');
-    if (n.salt != null && n.salt! > 1.5) warnings.add('High Salt');
-    if (product.allergens.isNotEmpty) warnings.add('Contains Allergens');
-    return warnings;
+  Widget _buildPlaceholder() => Container(
+        color: const Color(0xFFF0F0F0),
+        child:
+            const Center(child: Icon(Icons.fastfood, size: 64, color: Colors.grey)),
+      );
+}
+
+// ── NutriLens Score Card ──────────────────────────────────────────────────────
+
+class _NutriLensScoreCard extends StatelessWidget {
+  final AnalysisResult result;
+  const _NutriLensScoreCard({required this.result});
+
+  Color get _scoreColor {
+    if (result.score >= 85) return const Color(0xFF1E8449);
+    if (result.score >= 60) return const Color(0xFFF4D03F);
+    if (result.score >= 40) return const Color(0xFFE67E22);
+    if (result.score >= 20) return const Color(0xFFE74C3C);
+    return const Color(0xFFB71C1C);
   }
 
-  Widget _buildPlaceholder() {
+  String get _scoreLabel {
+    if (result.score >= 85) return 'Great match for your profile';
+    if (result.score >= 60) return 'Good — minor concerns';
+    if (result.score >= 40) return 'Caution — check warnings';
+    if (result.score >= 20) return 'Not recommended for you';
+    return 'Avoid — conflicts with your profile';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFF0F0F0),
-      child: const Center(
-          child: Icon(Icons.fastfood, size: 64, color: Colors.grey)),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _scoreColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          // Score circle
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _scoreColor.withOpacity(0.1),
+              border: Border.all(color: _scoreColor, width: 2.5),
+            ),
+            child: Center(
+              child: Text('${result.score}',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: _scoreColor)),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('NutriLens Score',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(_scoreLabel,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _scoreColor)),
+                if (result.hasDanger) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE5E5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('⚠ Health alert detected',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFFE74C3C),
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
+// ── Warnings Card (NL-25) ─────────────────────────────────────────────────────
+
+class _WarningsCard extends StatelessWidget {
+  final List<AnalysisWarning> warnings;
+  const _WarningsCard({required this.warnings});
+
+  Color _severityColor(String severity) {
+    switch (severity) {
+      case 'danger': return const Color(0xFFE74C3C);
+      case 'warning': return const Color(0xFFE67E22);
+      default: return const Color(0xFF2D9CDB);
+    }
+  }
+
+  IconData _severityIcon(String severity) {
+    switch (severity) {
+      case 'danger': return Icons.dangerous_rounded;
+      case 'warning': return Icons.warning_amber_rounded;
+      default: return Icons.info_outline_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.shield_outlined, color: Color(0xFFEC6F2D), size: 18),
+            SizedBox(width: 8),
+            Text('Health Warnings',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A))),
+          ]),
+          const SizedBox(height: 14),
+          ...warnings.map((w) {
+            final color = _severityColor(w.severity);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(_severityIcon(w.severity),
+                        color: color, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(w.label,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: color)),
+                        if (w.detail.isNotEmpty)
+                          Text(w.detail,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Recommendations Card (NL-26) ──────────────────────────────────────────────
+
+class _RecommendationsCard extends StatelessWidget {
+  final List<String> recommendations;
+  const _RecommendationsCard({required this.recommendations});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.lightbulb_outline_rounded,
+                color: Color(0xFFEC6F2D), size: 18),
+            SizedBox(width: 8),
+            Text('Recommendations',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A))),
+          ]),
+          const SizedBox(height: 14),
+          ...recommendations.map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('•  ',
+                        style: TextStyle(
+                            color: Color(0xFFEC6F2D),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16)),
+                    Expanded(
+                      child: Text(r,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF3D3D3D),
+                              height: 1.5)),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Analysis Loading Card ─────────────────────────────────────────────────────
+
+class _AnalysisLoadingCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: Color(0xFFEC6F2D)),
+          ),
+          SizedBox(width: 14),
+          Text('Analyzing against your health profile...',
+              style: TextStyle(fontSize: 13, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Nutriscore Card ───────────────────────────────────────────────────────────
 
 class _NutriscoreCard extends StatelessWidget {
   final String score;
@@ -319,11 +570,11 @@ class _NutriscoreCard extends StatelessWidget {
 
   String _scoreLabel(String s) {
     switch (s.toLowerCase()) {
-      case 'a': return 'Excellent nutritional quality. Good source of fiber and protein.';
+      case 'a': return 'Excellent nutritional quality.';
       case 'b': return 'Good nutritional quality overall.';
-      case 'c': return 'Average nutritional quality. Consume in moderation.';
-      case 'd': return 'Poor nutritional quality. Limit consumption.';
-      case 'e': return 'Bad nutritional quality. Avoid if possible.';
+      case 'c': return 'Average quality. Consume in moderation.';
+      case 'd': return 'Poor quality. Limit consumption.';
+      case 'e': return 'Bad quality. Avoid if possible.';
       default: return 'Nutritional quality unknown.';
     }
   }
@@ -346,15 +597,14 @@ class _NutriscoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Nutrition Score',
+              const Text('Nutri-Score',
                   style: TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                       fontWeight: FontWeight.w500)),
               Row(
                 children: ['a', 'b', 'c', 'd', 'e'].map((g) {
-                  final isActive =
-                      g == score.toLowerCase();
+                  final isActive = g == score.toLowerCase();
                   return Container(
                     margin: const EdgeInsets.only(left: 6),
                     width: 36,
@@ -368,9 +618,7 @@ class _NutriscoreCard extends StatelessWidget {
                     child: Center(
                       child: Text(g.toUpperCase(),
                           style: TextStyle(
-                              color: isActive
-                                  ? Colors.white
-                                  : Colors.white38,
+                              color: isActive ? Colors.white : Colors.white38,
                               fontSize: 13,
                               fontWeight: FontWeight.w700)),
                     ),
@@ -389,35 +637,7 @@ class _NutriscoreCard extends StatelessWidget {
   }
 }
 
-class _WarningBadge extends StatelessWidget {
-  final String label;
-  const _WarningBadge({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3CD),
-        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.warning_amber_rounded,
-              size: 14, color: Color(0xFFE67E22)),
-          const SizedBox(width: 6),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFFE67E22),
-                  fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
+// ── Key Nutrition Card ────────────────────────────────────────────────────────
 
 class _KeyNutritionCard extends StatelessWidget {
   final NutritionFacts nutrition;
@@ -430,9 +650,7 @@ class _KeyNutritionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
+          color: Colors.white, borderRadius: BorderRadius.circular(20)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -484,15 +702,13 @@ class _NutritionRow extends StatelessWidget {
   final String label;
   final String value;
   final String sub;
-
-  const _NutritionRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.sub,
-  });
-
   static const primaryColor = Color(0xFFEC6F2D);
+
+  const _NutritionRow(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      required this.sub});
 
   @override
   Widget build(BuildContext context) {
@@ -502,9 +718,7 @@ class _NutritionRow extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.08),
-            shape: BoxShape.circle,
-          ),
+              color: primaryColor.withOpacity(0.08), shape: BoxShape.circle),
           child: Icon(icon, color: primaryColor, size: 20),
         ),
         const SizedBox(width: 12),
@@ -517,9 +731,7 @@ class _NutritionRow extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1A1A1A))),
-              Text(sub,
-                  style: const TextStyle(
-                      fontSize: 11, color: Colors.grey)),
+              Text(sub, style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ],
           ),
         ),
@@ -533,10 +745,11 @@ class _NutritionRow extends StatelessWidget {
   }
 }
 
+// ── Allergen Card ─────────────────────────────────────────────────────────────
+
 class _AllergenCard extends StatelessWidget {
   final List<String> allergens;
   const _AllergenCard({required this.allergens});
-
   static const primaryColor = Color(0xFFEC6F2D);
 
   @override
@@ -552,10 +765,9 @@ class _AllergenCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.warning_amber_rounded,
-                color: primaryColor, size: 18),
+            const Icon(Icons.warning_amber_rounded, color: primaryColor, size: 18),
             const SizedBox(width: 8),
-            Text('Allergens',
+            const Text('Allergens',
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -574,7 +786,7 @@ class _AllergenCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(a,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 12,
                               color: primaryColor,
                               fontWeight: FontWeight.w500)),
@@ -587,138 +799,83 @@ class _AllergenCard extends StatelessWidget {
   }
 }
 
-class _AIInsightsCard extends StatelessWidget {
-  final NutritionFacts nutrition;
-  final List<String> allergens;
-  final String? nutriscore;
-
-  const _AIInsightsCard({
-    required this.nutrition,
-    required this.allergens,
-    this.nutriscore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(children: [
-            Icon(Icons.smart_toy_outlined,
-                color: Color(0xFF9B51E0), size: 18),
-            SizedBox(width: 8),
-            Text('AI Health Insights',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A))),
-          ]),
-          const SizedBox(height: 14),
-          if (nutriscore != null &&
-              (nutriscore == 'a' || nutriscore == 'b'))
-            _InsightRow(
-              emoji: '✓',
-              color: const Color(0xFF1E8449),
-              label: 'Good for:',
-              text: 'Quick energy boost, balanced nutritional profile.',
-            ),
-          if (nutrition.sugar != null && nutrition.sugar! > 15)
-            _InsightRow(
-              emoji: '⚠',
-              color: const Color(0xFFE67E22),
-              label: 'Watch out:',
-              text:
-                  'Contains added sugars. Best consumed in moderation if monitoring sugar intake.',
-            ),
-          if (allergens.isNotEmpty)
-            _InsightRow(
-              emoji: '⚠',
-              color: const Color(0xFFEC6F2D),
-              label: 'Allergens:',
-              text:
-                  'Contains ${allergens.take(3).join(', ')}. Check with your health profile.',
-            ),
-          _InsightRow(
-            emoji: '💡',
-            color: const Color(0xFF2D9CDB),
-            label: 'Tip:',
-            text:
-                'Pairs well with a protein source for a more balanced meal.',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InsightRow extends StatelessWidget {
-  final String emoji;
-  final Color color;
-  final String label;
-  final String text;
-
-  const _InsightRow({
-    required this.emoji,
-    required this.color,
-    required this.label,
-    required this.text,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(
-              fontSize: 13, color: Color(0xFF555555), height: 1.5),
-          children: [
-            TextSpan(text: '$emoji '),
-            TextSpan(
-                text: '$label ',
-                style: TextStyle(
-                    fontWeight: FontWeight.w700, color: color)),
-            TextSpan(text: text),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ── Highlighted Ingredients Card (NL-24) ──────────────────────────────────────
 
 class _IngredientsCard extends StatelessWidget {
   final List<String> ingredients;
-  const _IngredientsCard({required this.ingredients});
+  final List<String> highlighted;
+  const _IngredientsCard(
+      {required this.ingredients, required this.highlighted});
+
+  bool _isHighlighted(String ingredient) {
+    final lower = ingredient.toLowerCase();
+    return highlighted.any((h) => lower.contains(h.toLowerCase()));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
+          color: Colors.white, borderRadius: BorderRadius.circular(20)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Ingredients',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A))),
-          const SizedBox(height: 10),
-          Text(ingredients.join(', '),
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF666666),
-                  height: 1.6)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Ingredients',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A))),
+              if (highlighted.isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('${highlighted.length} flagged',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFE67E22),
+                          fontWeight: FontWeight.w600)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: ingredients.map((ing) {
+              final flag = _isHighlighted(ing);
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: flag
+                      ? const Color(0xFFFFF3CD)
+                      : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: flag
+                      ? Border.all(
+                          color: const Color(0xFFE67E22).withOpacity(0.4))
+                      : null,
+                ),
+                child: Text(ing,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: flag
+                            ? const Color(0xFFE67E22)
+                            : const Color(0xFF555555),
+                        fontWeight: flag
+                            ? FontWeight.w600
+                            : FontWeight.w400)),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
