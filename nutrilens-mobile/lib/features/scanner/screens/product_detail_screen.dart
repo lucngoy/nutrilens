@@ -14,6 +14,10 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
+  static const _expandedHeight = 220.0;
+
+  final ScrollController _scrollController = ScrollController();
+  bool _isCollapsed = false;
 
   ProductModel get product => widget.product;
 
@@ -22,20 +26,47 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     super.initState();
     Future.microtask(() =>
         ref.read(scanHistoryProvider.notifier).addScan(widget.product));
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final collapsed = _scrollController.offset >
+        _expandedHeight - kToolbarHeight - 16;
+    if (collapsed != _isCollapsed) {
+      setState(() => _isCollapsed = collapsed);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
+    final hasImage = product.imageUrl != null && product.imageUrl!.isNotEmpty;
+
+    // When expanded over an image: white icons. When collapsed: dark/orange.
+    final iconColor = (!_isCollapsed && hasImage) ? Colors.white : primaryColor;
+    final iconBg = (!_isCollapsed && hasImage)
+        ? Colors.black.withOpacity(0.25)
+        : primaryColor.withOpacity(0.08);
+    final titleColor =
+        (!_isCollapsed && hasImage) ? Colors.white : const Color(0xFF1A1A1A);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       body: Stack(
         children: [
           CustomScrollView(
+            controller: _scrollController,
             slivers: [
                 // App Bar
                 SliverAppBar(
-                    expandedHeight: 220,
+                    expandedHeight: _expandedHeight,
                     pinned: true,
                     backgroundColor: Colors.white,
                     elevation: 0,
@@ -47,24 +78,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         onTap: () => Navigator.pop(context),
                         child: Container(
                             decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.08),
+                            color: iconBg,
                             shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                             Icons.chevron_left,
-                            color: primaryColor,
+                            color: iconColor,
                             size: 24,
                             ),
                         ),
                         ),
                     ),
 
-                    title: const Text(
+                    title: Text(
                         'Product Analysis',
                         style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
+                        color: titleColor,
                         ),
                     ),
                     centerTitle: true,

@@ -346,48 +346,6 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Consumption planning
-                  _Label('Consumption Planning (Optional)'),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFEEEEEE)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _InputField(
-                                controller: _consumptionController,
-                                hint: 'Amount per use',
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _InputField(
-                                controller: _usesPerWeekController,
-                                hint: 'Times per week',
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Example: 200 amount, 3 times/week',
-                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   // Inventory type toggle
                   _Label('Inventory Type'),
                   const SizedBox(height: 8),
