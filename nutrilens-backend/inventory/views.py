@@ -36,9 +36,9 @@ class InventoryAddView(APIView):
             barcode=barcode,
             inventory_type=inventory_type,
             defaults={
-                'name': request.data.get('name', 'Unknown'),
-                'brand': request.data.get('brand', ''),
-                'image_url': request.data.get('image_url', ''),
+                'name': request.data.get('name', 'Unknown')[:255],
+                'brand': request.data.get('brand', '')[:255],
+                'image_url': (request.data.get('image_url', '') or '')[:500],
                 'nutriscore': request.data.get('nutriscore', ''),
                 'calories': request.data.get('calories'),
                 'fat': request.data.get('fat'),
@@ -131,7 +131,14 @@ class ScanHistoryAddView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = ScanHistorySerializer(data=request.data)
+        data = request.data.copy()
+        if 'image_url' in data:
+            data['image_url'] = (data['image_url'] or '')[:500]
+        if 'name' in data:
+            data['name'] = (data['name'] or '')[:255]
+        if 'brand' in data:
+            data['brand'] = (data['brand'] or '')[:255]
+        serializer = ScanHistorySerializer(data=data)
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response(serializer.data,

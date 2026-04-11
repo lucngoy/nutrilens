@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../providers/scanner_provider.dart';
+import '../providers/scan_history_provider.dart';
 import 'product_detail_screen.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
@@ -62,6 +63,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
                 builder: (_) => ProductDetailScreen(product: product)),
           ).then((_) {
             ref.read(scannedProductProvider.notifier).reset();
+            // Refresh scan history in background so home screen is up to date
+            ref.read(scanHistoryProvider.notifier).fetchRecentScans();
             _controller.start();
             setState(() => _isProcessing = false);
           });

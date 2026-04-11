@@ -40,7 +40,7 @@ class InventoryItem(models.Model):
     barcode = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
     brand = models.CharField(max_length=255, blank=True, default='')
-    image_url = models.URLField(blank=True, default='')
+    image_url = models.URLField(max_length=500, blank=True, default='')
     nutriscore = models.CharField(max_length=1, blank=True, default='')
 
     # Nutrition per 100g
@@ -106,7 +106,7 @@ class ScanHistory(models.Model):
     barcode = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
     brand = models.CharField(max_length=255, blank=True, default='')
-    image_url = models.URLField(blank=True, default='')
+    image_url = models.URLField(max_length=500, blank=True, default='')
     nutriscore = models.CharField(max_length=1, blank=True, default='')
     calories = models.FloatField(null=True, blank=True)
     scanned_at = models.DateTimeField(auto_now_add=True)
