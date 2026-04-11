@@ -16,3 +16,8 @@ nutrilens-mobile/.flutter-plugins-dependencies
 
 # macOS
 .DS_Store
+
+# Media uploads
+nutrilens-backend/media/
+**/__pycache__/
+**/*.pyc
