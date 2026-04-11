@@ -2,8 +2,8 @@ import 'package:dio/dio.dart';
 import '../storage/storage_service.dart';
 
 class ApiClient {
-  // static const String baseUrl = 'http://172.20.18.123:8000/api'; // Fac IP
-  static const String baseUrl = 'http://192.168.3.34:8000/api'; // Home IP
+  // static const String baseUrl = 'http://172.20.26.136:8000/api'; // Fac IP
+  static const String baseUrl = 'http://192.168.3.19:8000/api'; // Home IP
   static Dio? _instance;
 
   static Dio get instance {

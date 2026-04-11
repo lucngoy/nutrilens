@@ -1,18 +1,28 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile
+from .models import UserProfile, HealthSnapshot, MedicalDocument
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
     bmi = serializers.ReadOnlyField()
+    age = serializers.ReadOnlyField()
+    daily_calorie_target = serializers.ReadOnlyField()
 
     class Meta:
         model = UserProfile
         fields = [
-            'id', 'date_of_birth', 'weight', 'height', 'goal',
+            'id', 'gender', 'date_of_birth', 'age',
+            'weight', 'height', 'goal', 'activity_level',
             'is_diabetic', 'has_hypertension', 'is_celiac',
-            'allergies', 'avatar', 'bmi', 'created_at', 'updated_at'
+            'is_lactose_intolerant', 'is_vegan', 'is_vegetarian',
+            'allergies', 'avatar',
+            'daily_calories', 'daily_protein', 'daily_carbs',
+            'daily_fat', 'daily_sugar_limit', 'daily_salt_limit',
+            'bmi', 'daily_calorie_target',
+            'created_at', 'updated_at',
         ]
+        read_only_fields = ['id', 'bmi', 'age',
+                            'daily_calorie_target', 'created_at', 'updated_at']
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -54,3 +64,19 @@ class UserSerializer(serializers.ModelSerializer):
         profile.save()
 
         return instance
+
+
+class HealthSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HealthSnapshot
+        fields = ['id', 'weight', 'bmi', 'daily_calorie_target',
+                  'notes', 'recorded_at']
+        read_only_fields = ['id', 'recorded_at']
+
+
+class MedicalDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicalDocument
+        fields = ['id', 'title', 'document_type', 'file',
+                  'notes', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
