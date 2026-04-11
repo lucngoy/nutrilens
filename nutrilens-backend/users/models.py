@@ -22,7 +22,6 @@ class UserProfile(models.Model):
     GENDER_CHOICES = [
         ('male', 'Male'),
         ('female', 'Female'),
-        ('other', 'Other'),
     ]
 
     user = models.OneToOneField(
@@ -94,7 +93,79 @@ class UserProfile(models.Model):
             'active': 1.725,
             'very_active': 1.9,
         }
-        return round(bmr * multipliers.get(self.activity_level, 1.55))
+        tdee = bmr * multipliers.get(self.activity_level, 1.55)
+        goal_adjustments = {
+            'lose_weight': -500,
+            'gain_muscle': +300,
+            'maintain': 0,
+            'eat_healthy': 0,
+        }
+        adjustment = goal_adjustments.get(self.goal, 0)
+        return round(tdee + adjustment)
+
+    # g/kg body weight per goal — scientifically grounded
+    _MACRO_PER_KG = {
+        #                protein  fat   sugar_%calories  salt
+        'lose_weight':  (2.0,    0.9,  0.05,            5),
+        'gain_muscle':  (1.8,    0.9,  0.10,            6),
+        'maintain':     (1.2,    1.0,  0.10,            5),
+        'eat_healthy':  (1.2,    0.9,  0.05,            5),
+    }
+
+    def _macros_from_weight(self):
+        """Returns (protein_g, fat_g, carbs_g, sugar_g, salt_g) or None."""
+        if not self.weight or not self.daily_calorie_target:
+            return None
+        kcal = self.daily_calorie_target
+        protein_per_kg, fat_per_kg, sugar_pct, salt = self._MACRO_PER_KG.get(
+            self.goal, self._MACRO_PER_KG['maintain'])
+
+        protein_g = round(self.weight * protein_per_kg)
+        fat_g = round(self.weight * fat_per_kg)
+
+        # Remaining calories go to carbs
+        remaining = kcal - (protein_g * 4) - (fat_g * 9)
+        carbs_g = round(max(remaining, 0) / 4)
+
+        # Sugar: % of total calories (OMS <10%, strict goals <5%)
+        sugar_g = round(kcal * sugar_pct / 4)
+
+        return protein_g, fat_g, carbs_g, sugar_g, salt
+
+    @property
+    def protein_target(self):
+        if self.daily_protein:
+            return self.daily_protein
+        macros = self._macros_from_weight()
+        return macros[0] if macros else None
+
+    @property
+    def fat_target(self):
+        if self.daily_fat:
+            return self.daily_fat
+        macros = self._macros_from_weight()
+        return macros[1] if macros else None
+
+    @property
+    def carbs_target(self):
+        if self.daily_carbs:
+            return self.daily_carbs
+        macros = self._macros_from_weight()
+        return macros[2] if macros else None
+
+    @property
+    def sugar_limit_target(self):
+        if self.daily_sugar_limit:
+            return self.daily_sugar_limit
+        macros = self._macros_from_weight()
+        return macros[3] if macros else None
+
+    @property
+    def salt_limit_target(self):
+        if self.daily_salt_limit:
+            return self.daily_salt_limit
+        macros = self._macros_from_weight()
+        return macros[4] if macros else None
 
 
 class HealthSnapshot(models.Model):

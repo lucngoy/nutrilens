@@ -325,7 +325,7 @@ class HomeScreen extends ConsumerWidget {
                   _NavItem(
                       icon: Icons.person_outline,
                       label: 'Profile',
-                      onTap: () => context.push('/profile')),
+                      onTap: () => context.push('/health-profile')),
                 ],
               ),
             ),

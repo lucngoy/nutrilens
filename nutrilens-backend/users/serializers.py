@@ -7,6 +7,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
     bmi = serializers.ReadOnlyField()
     age = serializers.ReadOnlyField()
     daily_calorie_target = serializers.ReadOnlyField()
+    protein_target = serializers.ReadOnlyField()
+    carbs_target = serializers.ReadOnlyField()
+    fat_target = serializers.ReadOnlyField()
+    sugar_limit_target = serializers.ReadOnlyField()
+    salt_limit_target = serializers.ReadOnlyField()
 
     class Meta:
         model = UserProfile
@@ -19,10 +24,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'daily_calories', 'daily_protein', 'daily_carbs',
             'daily_fat', 'daily_sugar_limit', 'daily_salt_limit',
             'bmi', 'daily_calorie_target',
+            'protein_target', 'carbs_target', 'fat_target',
+            'sugar_limit_target', 'salt_limit_target',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'bmi', 'age',
-                            'daily_calorie_target', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'bmi', 'age', 'daily_calorie_target',
+            'protein_target', 'carbs_target', 'fat_target',
+            'sugar_limit_target', 'salt_limit_target',
+            'created_at', 'updated_at',
+        ]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
