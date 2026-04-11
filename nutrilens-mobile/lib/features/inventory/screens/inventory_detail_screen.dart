@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_dialogs.dart';
 import '../models/inventory_model.dart';
 import '../providers/inventory_provider.dart';
 
@@ -374,65 +375,11 @@ class _InventoryDetailScreenState
                   // Delete
                   GestureDetector(
                     onTap: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                          title: const Text('Remove item',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700)),
-                          content: Text(
-                              'Remove "${item.name}" from your inventory?',
-                              style: const TextStyle(
-                                  fontSize: 14, color: Colors.grey)),
-                          actionsPadding:
-                              const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          actions: [
-                            Row(children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: Color(0xFFEEEEEE)),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                  ),
-                                  child: const Text('Cancel',
-                                      style: TextStyle(
-                                          color: Color(0xFF1A1A1A),
-                                          fontWeight: FontWeight.w600)),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text('Remove',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600)),
-                                ),
-                              ),
-                            ]),
-                          ],
-                        ),
+                      final confirmed = await AppDialogs.warning(
+                        context,
+                        title: 'Remove item',
+                        message: 'Remove "${item.name}" from your inventory?',
+                        confirmLabel: 'Remove',
                       );
                       if (confirmed == true && mounted) {
                         await ref

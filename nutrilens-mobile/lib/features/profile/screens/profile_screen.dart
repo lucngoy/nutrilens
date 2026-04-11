@@ -320,6 +320,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onTap: () => context.push('/health-history'),
                   ),
                   _MenuItem(
+                    icon: Icons.folder_outlined,
+                    label: 'Medical Documents',
+                    description: 'Lab results, prescriptions, reports',
+                    onTap: () => context.push('/medical-documents'),
+                  ),
+                  _MenuItem(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
                     description: 'Push notifications, reminders',
