@@ -27,12 +27,14 @@ class AnalysisResult {
   final List<AnalysisWarning> warnings;
   final List<String> highlightedIngredients;
   final List<String> recommendations;
+  final List<String> reasons;
   final int score;
 
   const AnalysisResult({
     required this.warnings,
     required this.highlightedIngredients,
     required this.recommendations,
+    required this.reasons,
     required this.score,
   });
 
@@ -46,6 +48,9 @@ class AnalysisResult {
               .map((e) => e.toString())
               .toList(),
       recommendations: (json['recommendations'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      reasons: (json['reasons'] as List? ?? [])
           .map((e) => e.toString())
           .toList(),
       score: json['score'] ?? 100,

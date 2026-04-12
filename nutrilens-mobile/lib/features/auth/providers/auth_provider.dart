@@ -4,6 +4,8 @@ import '../services/auth_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
 import '../../../features/scanner/providers/scan_history_provider.dart';
+import '../../../features/scanner/providers/analysis_provider.dart';
+import '../../../features/health/providers/health_provider.dart';
 import '../../../core/services/notification_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
@@ -49,6 +51,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
               NotificationService.checkInventoryAlerts(items);
             });
             _ref.read(scanHistoryProvider.notifier).fetchRecentScans(limit: 3);
+            _ref.read(healthProfileProvider.notifier).fetchProfile();
         } catch (e) {
             state = const AsyncValue.data(null);
             rethrow;
@@ -73,6 +76,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     Future<void> logout() async {
         await _authService.logout();
         _ref.invalidate(inventoryProvider);
+        _ref.invalidate(healthProfileProvider);
+        _ref.invalidate(healthSnapshotsProvider);
+        _ref.invalidate(medicalDocumentsProvider);
+        _ref.invalidate(scanHistoryProvider);
+        _ref.read(analysisProvider.notifier).reset();
         state = const AsyncValue.data(null);
     }
 }

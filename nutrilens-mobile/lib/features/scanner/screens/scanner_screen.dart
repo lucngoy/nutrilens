@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../providers/scanner_provider.dart';
 import '../providers/scan_history_provider.dart';
+import '../providers/analysis_provider.dart';
 import 'product_detail_screen.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
@@ -57,11 +58,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     productState.when(
       data: (product) {
         if (product != null) {
+          // Pre-trigger analysis so it runs during the navigation animation (~300ms)
+          ref.read(analysisProvider.notifier).analyze(product);
           Navigator.push(
             context,
             MaterialPageRoute(
                 builder: (_) => ProductDetailScreen(product: product)),
           ).then((_) {
+            ref.read(analysisProvider.notifier).reset();
             ref.read(scannedProductProvider.notifier).reset();
             // Refresh scan history in background so home screen is up to date
             ref.read(scanHistoryProvider.notifier).fetchRecentScans();

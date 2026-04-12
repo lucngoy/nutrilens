@@ -3,15 +3,19 @@ import '../models/product_model.dart';
 import '../models/analysis_model.dart';
 import '../services/analysis_service.dart';
 
-final analysisProvider = StateNotifierProvider.autoDispose<
-    AnalysisNotifier, AsyncValue<AnalysisResult?>>((ref) {
+// Non-autoDispose so the state survives during navigation animation.
+// Scanner screen pre-triggers analysis, then resets on pop.
+final analysisProvider = StateNotifierProvider<AnalysisNotifier,
+    AsyncValue<AnalysisResult?>>((ref) {
   return AnalysisNotifier(AnalysisService());
 });
 
 class AnalysisNotifier extends StateNotifier<AsyncValue<AnalysisResult?>> {
   final AnalysisService _service;
 
-  AnalysisNotifier(this._service) : super(const AsyncValue.loading());
+  AnalysisNotifier(this._service) : super(const AsyncValue.data(null));
+
+  void reset() => state = const AsyncValue.data(null);
 
   Future<void> analyze(ProductModel product) async {
     state = const AsyncValue.loading();
