@@ -12,6 +12,28 @@ from .serializers import (
 )
 
 
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        old_password = request.data.get('old_password', '')
+        new_password = request.data.get('new_password', '')
+
+        if not old_password or not new_password:
+            return Response({'detail': 'Both old_password and new_password are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not request.user.check_password(old_password):
+            return Response({'old_password': 'Current password is incorrect.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 8:
+            return Response({'new_password': 'Password must be at least 8 characters.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(new_password)
+        request.user.save()
+        return Response({'detail': 'Password updated successfully.'})
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
