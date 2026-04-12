@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
-import '../../auth/services/auth_service.dart';
 import '../../health/providers/health_provider.dart';
 import '../../../core/network/api_client.dart';
 
@@ -333,11 +332,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         const SnackBar(content: Text('Coming soon!'))),
                   ),
                   _MenuItem(
-                    icon: Icons.shield_outlined,
-                    label: 'Privacy & Security',
-                    description: 'Password, data settings',
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon!'))),
+                    icon: Icons.lock_outline,
+                    label: 'Change Password',
+                    description: 'Update your password',
+                    onTap: () => _showChangePassword(context),
                   ),
                   _MenuItem(
                     icon: Icons.help_outline,
@@ -445,11 +443,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // Edit Personal Info bottom sheet
   void _showEditPersonalInfo(BuildContext context, UserModel user) {
-    final usernameController =
-        TextEditingController(text: user.username);
+    final usernameController = TextEditingController(text: user.username);
     final emailController = TextEditingController(text: user.email);
+    bool saving = false;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -457,50 +455,234 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            24,
-            24,
-            24,
-            MediaQuery.of(context).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Personal Information',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 20),
-            _EditField(
-                controller: usernameController, label: 'Username'),
-            const SizedBox(height: 12),
-            _EditField(controller: emailController, label: 'Email'),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  // TODO: appel PATCH /users/profile/
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Profile updated!'),
-                          backgroundColor: Colors.green));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 0,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (_, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Personal Information',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              _EditField(controller: usernameController, label: 'Username'),
+              const SizedBox(height: 12),
+              _EditField(
+                  controller: emailController,
+                  label: 'Email',
+                  keyboardType: TextInputType.emailAddress),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFE74C3C).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Color(0xFFE74C3C), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(errorMessage!,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFFE74C3C))),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Text('Save',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600)),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setSheetState(() {
+                            saving = true;
+                            errorMessage = null;
+                          });
+                          try {
+                            final authService = ref.read(authServiceProvider);
+                            final updated =
+                                await authService.updateProfile(data: {
+                              'username': usernameController.text.trim(),
+                              'email': emailController.text.trim(),
+                            });
+                            ref
+                                .read(authStateProvider.notifier)
+                                .updateUser(updated);
+                            if (context.mounted) {
+                              Navigator.pop(sheetContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Profile updated!'),
+                                      backgroundColor: Colors.green));
+                            }
+                          } catch (e) {
+                            setSheetState(() {
+                              saving = false;
+                              errorMessage = e.toString();
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Save',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600)),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChangePassword(BuildContext context) {
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    bool saving = false;
+    String? errorMessage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (_, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Change Password',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              _EditField(
+                  controller: oldController,
+                  label: 'Current Password',
+                  obscure: true),
+              const SizedBox(height: 12),
+              _EditField(
+                  controller: newController,
+                  label: 'New Password',
+                  hint: 'At least 8 characters',
+                  obscure: true),
+              const SizedBox(height: 12),
+              _EditField(
+                  controller: confirmController,
+                  label: 'Confirm New Password',
+                  obscure: true),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFE74C3C).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Color(0xFFE74C3C), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(errorMessage!,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFFE74C3C))),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (newController.text != confirmController.text) {
+                            setSheetState(
+                                () => errorMessage = 'Passwords do not match.');
+                            return;
+                          }
+                          setSheetState(() {
+                            saving = true;
+                            errorMessage = null;
+                          });
+                          try {
+                            final authService = ref.read(authServiceProvider);
+                            await authService.changePassword(
+                              oldPassword: oldController.text,
+                              newPassword: newController.text,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(sheetContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Password updated!'),
+                                      backgroundColor: Colors.green));
+                            }
+                          } catch (e) {
+                            setSheetState(() {
+                              saving = false;
+                              errorMessage = e.toString();
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Update Password',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -681,39 +863,65 @@ class _MenuItem extends StatelessWidget {
   }
 }
 
-class _EditField extends StatelessWidget {
+class _EditField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String? hint;
   final TextInputType? keyboardType;
+  final bool obscure;
 
   const _EditField({
     required this.controller,
     required this.label,
     this.hint,
     this.keyboardType,
+    this.obscure = false,
   });
+
+  @override
+  State<_EditField> createState() => _EditFieldState();
+}
+
+class _EditFieldState extends State<_EditField> {
+  late bool _hidden;
+
+  @override
+  void initState() {
+    super.initState();
+    _hidden = widget.obscure;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
+        Text(widget.label,
             style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF1A1A1A))),
         const SizedBox(height: 6),
         TextField(
-          controller: controller,
-          keyboardType: keyboardType,
+          controller: widget.controller,
+          keyboardType: widget.keyboardType,
+          obscureText: _hidden,
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
             hintStyle:
                 const TextStyle(color: Colors.grey, fontSize: 14),
             filled: true,
             fillColor: const Color(0xFFF8F8F8),
+            suffixIcon: widget.obscure
+                ? IconButton(
+                    icon: Icon(
+                      _hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _hidden = !_hidden),
+                  )
+                : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFEEEEEE)),

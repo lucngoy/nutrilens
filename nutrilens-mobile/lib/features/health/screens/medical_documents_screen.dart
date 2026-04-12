@@ -280,6 +280,7 @@ class _MedicalDocumentsScreenState
     final titleController = TextEditingController(text: doc.title);
     final notesController = TextEditingController(text: doc.notes);
     bool isSaving = false;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -319,6 +320,24 @@ class _MedicalDocumentsScreenState
                 maxLines: 3,
                 textCapitalization: TextCapitalization.sentences,
               ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE74C3C).withOpacity(0.3)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFE74C3C), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(errorMessage!,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFE74C3C)))),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -328,7 +347,7 @@ class _MedicalDocumentsScreenState
                       : () async {
                           final title = titleController.text.trim();
                           if (title.isEmpty) return;
-                          setModalState(() => isSaving = true);
+                          setModalState(() { isSaving = true; errorMessage = null; });
                           try {
                             await ref
                                 .read(medicalDocumentsProvider.notifier)
@@ -337,13 +356,10 @@ class _MedicalDocumentsScreenState
                                     notes: notesController.text.trim());
                             if (context.mounted) Navigator.pop(ctx);
                           } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: Text(e.toString()),
-                                  backgroundColor: Colors.red));
-                            }
-                          } finally {
-                            setModalState(() => isSaving = false);
+                            setModalState(() {
+                              isSaving = false;
+                              errorMessage = e.toString();
+                            });
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -451,6 +467,7 @@ class _MedicalDocumentsScreenState
     String selectedType = 'blood_test';
     File? selectedFile;
     bool isUploading = false;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -593,6 +610,24 @@ class _MedicalDocumentsScreenState
                 maxLines: 2,
                 decoration: _inputDecoration('Additional notes...'),
               ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE74C3C).withOpacity(0.3)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFE74C3C), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(errorMessage!,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFE74C3C)))),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 24),
 
               // Upload button
@@ -603,18 +638,14 @@ class _MedicalDocumentsScreenState
                       ? null
                       : () async {
                           if (titleController.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Please enter a title')));
+                            setModalState(() => errorMessage = 'Please enter a title.');
                             return;
                           }
                           if (selectedFile == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Please select a file')));
+                            setModalState(() => errorMessage = 'Please select a file.');
                             return;
                           }
-                          setModalState(() => isUploading = true);
+                          setModalState(() { isUploading = true; errorMessage = null; });
                           try {
                             await ref
                                 .read(medicalDocumentsProvider.notifier)
@@ -626,14 +657,10 @@ class _MedicalDocumentsScreenState
                                 );
                             if (context.mounted) Navigator.pop(context);
                           } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text(e.toString()),
-                                      backgroundColor: Colors.red));
-                            }
-                          } finally {
-                            setModalState(() => isUploading = false);
+                            setModalState(() {
+                              isUploading = false;
+                              errorMessage = e.toString();
+                            });
                           }
                         },
                   style: ElevatedButton.styleFrom(

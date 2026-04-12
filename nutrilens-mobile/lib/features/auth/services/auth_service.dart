@@ -65,6 +65,20 @@ class AuthService {
     }
   }
 
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _dio.post('/users/profile/change-password/', data: {
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      });
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<UserModel> uploadAvatar(File imageFile) async {
     try {
       final formData = FormData.fromMap({
