@@ -111,6 +111,7 @@ class ProductAnalysisView(APIView):
         nutrition = data.get('nutrition', {})
         allergens = [a.lower() for a in data.get('allergens', [])]
         ingredients_text = ' '.join(data.get('ingredients', [])).lower()
+        nutriscore = (data.get('nutriscore') or '').lower()
 
         warnings = []
         highlighted = []
@@ -120,38 +121,113 @@ class ProductAnalysisView(APIView):
         sugar = nutrition.get('sugar')
         salt = nutrition.get('salt')
         sat_fat = nutrition.get('saturated_fat')
-        sugar_limit = float(profile.sugar_limit_target or 50)
-        salt_limit = float(profile.salt_limit_target or 6)
+        calories = nutrition.get('calories')
+        # Unit hint from client — ml products use same values as approx (MVP)
+        product_unit = data.get('unit', 'g').lower()  # 'g' or 'ml'
+
+        # Medically-adjusted daily limits (OMS + clinical best practices).
+        # Collect all applicable limits and take the strictest (min).
+        sugar_candidates = [float(profile.sugar_limit_target or 50)]
+        if profile.is_diabetic:
+            sugar_candidates.append(25.0)
+        if profile.goal in ('lose_weight', 'eat_healthy'):
+            sugar_candidates.append(35.0)
+        sugar_limit = min(sugar_candidates)
+
+        salt_candidates = [float(profile.salt_limit_target or 5)]
+        if profile.has_hypertension:
+            salt_candidates.append(3.0)
+        if profile.goal in ('lose_weight', 'eat_healthy'):
+            salt_candidates.append(4.0)
+        salt_limit = min(salt_candidates)
+
+        # Data quality guard
+        available_fields = sum(1 for v in [sugar, salt, sat_fat, calories] if v is not None)
+        data_quality_low = available_fields < 2
+
+        # intensities: {warning_code: float} — cap à 2.0
+        intensities = {}
+
+        # ── Helper: safe ratio clamp ─────────────────────────────────────────
+        def _ratio(value, threshold):
+            return max(0.0, min(2.0, float(value) / threshold))
 
         if sugar is not None:
-            if float(sugar) > sugar_limit * 0.30:
+            sugar_threshold = sugar_limit * 0.30
+            ratio = _ratio(sugar, sugar_threshold)
+            over_pct = int((ratio - 1) * 100)
+            if ratio >= 1.0:
                 sev = 'danger' if profile.is_diabetic else 'warning'
-                detail = f'{float(sugar):.1f}g per 100g'
-                if profile.is_diabetic:
-                    detail += ' — critical for diabetics'
+                intensities['high_sugar'] = ratio
+                detail = (
+                    f'Exceeds your sugar limit by +{over_pct}% — avoid'
+                    if profile.is_diabetic
+                    else f'Exceeds sugar threshold by +{over_pct}% — limit'
+                )
                 warnings.append({'code': 'high_sugar', 'label': 'High Sugar',
                                   'severity': sev, 'detail': detail})
                 recommendations.append(
                     'Avoid — high sugar is dangerous for diabetics.' if profile.is_diabetic
                     else 'Consider a lower-sugar alternative.')
+            elif ratio >= 0.7:
+                warnings.append({'code': 'soft_sugar',
+                                  'label': 'Approaching sugar limit',
+                                  'severity': 'info',
+                                  'detail': f'Close to your sugar limit ({int(ratio * 100)}% of threshold) — monitor'})
+        else:
+            warnings.append({'code': 'missing_sugar', 'label': 'Sugar data not available',
+                              'severity': 'info',
+                              'detail': 'Sugar content missing — monitor'})
 
         if salt is not None:
-            if float(salt) > salt_limit * 0.25:
+            salt_threshold = salt_limit * 0.25
+            ratio = _ratio(salt, salt_threshold)
+            over_pct = int((ratio - 1) * 100)
+            if ratio >= 1.0:
                 sev = 'danger' if profile.has_hypertension else 'warning'
-                detail = f'{float(salt):.2f}g per 100g'
-                if profile.has_hypertension:
-                    detail += ' — risky for hypertension'
+                intensities['high_salt'] = ratio
+                detail = (
+                    f'Exceeds your salt limit by +{over_pct}% — avoid'
+                    if profile.has_hypertension
+                    else f'Exceeds salt threshold by +{over_pct}% — limit'
+                )
                 warnings.append({'code': 'high_salt', 'label': 'High Salt',
                                   'severity': sev, 'detail': detail})
                 recommendations.append(
                     'Limit consumption — high salt raises blood pressure.' if profile.has_hypertension
                     else 'Limit to 1 serving per day due to salt content.')
+            elif ratio >= 0.7:
+                warnings.append({'code': 'soft_salt',
+                                  'label': 'Approaching salt limit',
+                                  'severity': 'info',
+                                  'detail': f'Close to your salt limit ({int(ratio * 100)}% of threshold) — monitor'})
+        else:
+            warnings.append({'code': 'missing_salt', 'label': 'Salt data not available',
+                              'severity': 'info',
+                              'detail': 'Salt content missing — monitor'})
 
-        if sat_fat is not None and float(sat_fat) > 5:
-            warnings.append({'code': 'high_sat_fat', 'label': 'High Saturated Fat',
-                              'severity': 'warning',
-                              'detail': f'{float(sat_fat):.1f}g per 100g'})
-            recommendations.append('Prefer unsaturated fat alternatives.')
+        if sat_fat is not None:
+            sat_fat_f = float(sat_fat)
+            at_cardio_risk = profile.has_hypertension or profile.goal in ('lose_weight', 'eat_healthy')
+            if sat_fat_f > 8:
+                intensities['high_sat_fat'] = _ratio(sat_fat_f, 8.0)
+                sev = 'danger' if profile.has_hypertension else 'warning'
+                detail = (
+                    f'Very high saturated fat ({sat_fat_f:.1f}g/100{product_unit}) — avoid'
+                    if at_cardio_risk
+                    else f'Very high saturated fat ({sat_fat_f:.1f}g/100{product_unit}) — limit'
+                )
+                warnings.append({'code': 'high_sat_fat', 'label': 'High Saturated Fat',
+                                  'severity': sev, 'detail': detail})
+                recommendations.append(
+                    'Avoid — very high saturated fat, risky for your profile.' if at_cardio_risk
+                    else 'Very high saturated fat — limit consumption.')
+            elif sat_fat_f > 5:
+                intensities['high_sat_fat'] = _ratio(sat_fat_f, 5.0)
+                warnings.append({'code': 'high_sat_fat', 'label': 'High Saturated Fat',
+                                  'severity': 'warning',
+                                  'detail': f'High saturated fat ({sat_fat_f:.1f}g/100{product_unit}) — limit'})
+                recommendations.append('Prefer unsaturated fat alternatives.')
 
         # ── Allergens vs health conditions ───────────────────────────────────
         condition_map = {
@@ -161,15 +237,17 @@ class ProductAnalysisView(APIView):
             'dairy': profile.is_lactose_intolerant,
         }
         added_allergen_codes = set()
+        has_critical_danger = False
         for allergen in allergens:
             for key, has_condition in condition_map.items():
                 code = f'allergen_{key}'
                 if key in allergen and has_condition and code not in added_allergen_codes:
                     added_allergen_codes.add(code)
+                    has_critical_danger = True
                     warnings.append({'code': code,
                                      'label': f'Contains {allergen.title()}',
                                      'severity': 'danger',
-                                     'detail': 'Matches your health condition'})
+                                     'detail': f'Contains {allergen} — not suitable for your condition'})
                     recommendations.append(
                         f'Avoid — contains {allergen} and you have a declared condition.')
 
@@ -177,10 +255,11 @@ class ProductAnalysisView(APIView):
             user_allergies = [a.strip().lower() for a in profile.allergies.split(',') if a.strip()]
             for ua in user_allergies:
                 if any(ua in a for a in allergens):
+                    has_critical_danger = True
                     warnings.append({'code': f'personal_allergen_{ua}',
                                      'label': f'Personal Allergen: {ua.title()}',
                                      'severity': 'danger',
-                                     'detail': 'Declared in your health profile'})
+                                     'detail': f'Contains {ua} — declared in your profile, avoid'})
                     recommendations.append(f'Avoid — contains {ua} (personal allergen).')
 
         # ── Vegan / Vegetarian ───────────────────────────────────────────────
@@ -222,7 +301,7 @@ class ProductAnalysisView(APIView):
                 seen.add(w['code'])
                 deduped.append(w)
 
-        # ── Score intelligent (NutriLens v2) ──────────────────────────────────
+        # ── Score intelligent (NutriLens v3) ──────────────────────────────────
         # 1. Poids personnalisé selon le profil
         personal_weight = 1.0
         if profile.is_diabetic:
@@ -234,28 +313,107 @@ class ProductAnalysisView(APIView):
         if profile.goal in ('lose_weight', 'eat_healthy'):
             personal_weight = max(personal_weight, 1.1)
 
-        # 2. Malus dégressif par danger (1er = −40, suivants = −25) × poids
+        # 2. Malus dégressif × poids × intensité
         danger_warnings = [w for w in deduped if w['severity'] == 'danger']
         warning_warnings = [w for w in deduped if w['severity'] == 'warning']
         nb_dangers = len(danger_warnings)
+        nb_warnings = len(warning_warnings)
 
         danger_sum = 0.0
-        for i in range(nb_dangers):
+        for i, dw in enumerate(danger_warnings):
             base = 40.0 if i == 0 else 25.0
-            danger_sum += base * personal_weight
+            intensity = intensities.get(dw['code'], 1.0)
+            danger_sum += base * personal_weight * intensity
 
-        # 3. Effet exponentiel sur les dangers multiples
-        exponential = 1 + 0.2 * (nb_dangers - 1) if nb_dangers > 0 else 1.0
+        # 3. Effet exponentiel sur les dangers multiples (cap ×1.6)
+        exponential = 1 + min(0.2 * (nb_dangers - 1), 0.6) if nb_dangers > 0 else 1.0
         danger_malus = danger_sum * exponential
 
-        # 4. Malus warnings (flat)
-        warning_malus = len(warning_warnings) * 10
+        # 4. Malus warnings avec léger scaling
+        warning_base = nb_warnings * 10.0
+        warning_scaling = 1 + 0.05 * (nb_warnings - 1) if nb_warnings > 0 else 1.0
+        warning_malus = warning_base * warning_scaling
 
-        score = max(0, min(100, int(100 - danger_malus - warning_malus)))
+        # 5. Nutriscore penalty
+        nutriscore_penalty = {'a': 0, 'b': -3, 'c': -7, 'd': -15, 'e': -25}
+        ns_penalty = nutriscore_penalty.get(nutriscore, 0)
+
+        # 6. Score final
+        raw_score = 100 - danger_malus - warning_malus + ns_penalty
+
+        if has_critical_danger:
+            score = max(0, min(100, int(raw_score)))
+        else:
+            score = max(5, min(100, int(raw_score)))
+
+        # 7. Data quality guard (applied first so other caps can further restrict)
+        if data_quality_low:
+            score = min(score, 80)
+            deduped.insert(0, {
+                'code': 'insufficient_data',
+                'label': 'Incomplete nutritional data',
+                'severity': 'info',
+                'detail': 'Score may not reflect the full product profile',
+            })
+
+        # 8. Nutri-score D/E guard — poor nutritional quality even with no warnings
+        if nutriscore in ('d', 'e'):
+            score = min(score, 89)
+
+        # 9. Caps différenciés warning vs soft warning
+        has_warning = any(w['severity'] == 'warning' for w in deduped)
+        has_soft_warning = any(w['severity'] == 'info' for w in deduped)
+        if has_warning:
+            score = min(score, 95)
+        elif has_soft_warning:
+            score = min(score, 97)
+
+        # 10. Reasons — top 3, sorted by priority (critical allergen > danger > warning > info)
+        def _priority(w):
+            code = w['code']
+            if code.startswith('allergen_') or code.startswith('personal_allergen_'):
+                return 0  # critical allergen — always first
+            if w['severity'] == 'danger':
+                return 1
+            if w['severity'] == 'warning':
+                return 2
+            return 3  # info
+
+        candidate_reasons = []
+        for w in sorted(deduped, key=_priority):
+            if w['severity'] in ('danger', 'warning'):
+                candidate_reasons.append(w['detail'])
+
+        # Nutriscore reason (lower priority than nutrient warnings)
+        if nutriscore and nutriscore != 'a':
+            ns_labels = {'b': 'Nutri-score B — slightly reduces score',
+                         'c': 'Nutri-score C (average) — reduces score',
+                         'd': 'Nutri-score D (poor) — score capped at 89',
+                         'e': 'Nutri-score E (very poor) — score capped at 89'}
+            candidate_reasons.append(ns_labels.get(nutriscore, f'Nutri-score {nutriscore.upper()} reduces score'))
+
+        if data_quality_low:
+            candidate_reasons.append('Limited nutritional data — score capped at 80')
+
+        if candidate_reasons:
+            reasons = candidate_reasons[:3]
+        else:
+            # Score ≥ 85 with no issues — reinforce positively
+            positives = []
+            if sugar is not None and _ratio(sugar, sugar_limit * 0.30) < 0.7:
+                positives.append('Low sugar — within your daily limit')
+            if salt is not None and _ratio(salt, salt_limit * 0.25) < 0.7:
+                positives.append('Low salt — suitable for your profile')
+            if sat_fat is not None and float(sat_fat) <= 5:
+                positives.append('Moderate saturated fat — acceptable level')
+            if nutriscore in ('a', 'b'):
+                positives.append(f'Nutri-score {nutriscore.upper()} — good nutritional quality')
+            reasons = positives[:3] if positives else ['Within your daily limits for your profile']
 
         return Response({
             'warnings': deduped,
             'highlighted_ingredients': highlighted,
             'recommendations': list(dict.fromkeys(recommendations)),
             'score': score,
+            'reasons': reasons,
         })
