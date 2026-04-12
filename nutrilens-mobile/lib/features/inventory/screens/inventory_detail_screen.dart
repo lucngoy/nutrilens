@@ -517,11 +517,16 @@ class _InfoRow extends StatelessWidget {
           Text(label,
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: valueColor ?? const Color(0xFF1A1A1A))),
+          Flexible(
+            child: Text(value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? const Color(0xFF1A1A1A))),
+          ),
         ],
       ),
     );
@@ -562,11 +567,15 @@ class _NutriscoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Nutrition Score',
-                  style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500)),
+              const Flexible(
+                child: Text('Nutri-Score',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
+              ),
               Row(
                 children: ['a', 'b', 'c', 'd', 'e'].map((g) {
                   final isActive = g == score.toLowerCase();

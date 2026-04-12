@@ -49,6 +49,8 @@ class HomeScreen extends ConsumerWidget {
                                   style: TextStyle(
                                       color: Colors.white70, fontSize: 13)),
                               Text(user?.username ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 22,

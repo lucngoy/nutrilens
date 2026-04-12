@@ -480,7 +480,9 @@ class _SnapshotCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Stats
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
             children: [
               if (snapshot.weight != null)
                 _StatChip(
@@ -488,22 +490,18 @@ class _SnapshotCard extends StatelessWidget {
                   label: '${snapshot.weight!.toStringAsFixed(1)} kg',
                   delta: weightDelta,
                 ),
-              if (snapshot.bmi != null) ...[
-                const SizedBox(width: 8),
+              if (snapshot.bmi != null)
                 _StatChip(
                   icon: Icons.analytics_outlined,
                   label: 'BMI ${snapshot.bmi!.toStringAsFixed(1)}',
                   color: _bmiColor(snapshot.bmi!),
                 ),
-              ],
-              if (snapshot.dailyCalorieTarget != null) ...[
-                const SizedBox(width: 8),
+              if (snapshot.dailyCalorieTarget != null)
                 _StatChip(
                   icon: Icons.local_fire_department_outlined,
                   label:
                       '${snapshot.dailyCalorieTarget!.toStringAsFixed(0)} kcal',
                 ),
-              ],
             ],
           ),
 

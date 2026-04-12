@@ -105,6 +105,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           children: [
                             Image.network(product.imageUrl!,
                                 fit: BoxFit.cover,
+                                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+                                  if (wasSynchronouslyLoaded || frame != null) {
+                                    return child;
+                                  }
+                                  return Container(
+                                    color: Colors.black,
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                          color: Color(0xFFEC6F2D)),
+                                    ),
+                                  );
+                                },
                                 errorBuilder: (_, __, ___) =>
                                     _buildPlaceholder()),
                             Container(
@@ -369,6 +381,8 @@ class _NutriLensScoreCard extends StatelessWidget {
                             color: Colors.grey)),
                     const SizedBox(height: 4),
                     Text(label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -383,6 +397,8 @@ class _NutriLensScoreCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Text('⚠ Health alert detected',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                                 fontSize: 11,
                                 color: Color(0xFFE74C3C),
@@ -691,36 +707,38 @@ class _NutriscoreCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Nutri-Score',
-                  style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500)),
-              Row(
-                children: ['a', 'b', 'c', 'd', 'e'].map((g) {
-                  final isActive = g == score.toLowerCase();
-                  return Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? _scoreColor(g)
-                          : Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Text(g.toUpperCase(),
-                          style: TextStyle(
-                              color: isActive ? Colors.white : Colors.white38,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  );
-                }).toList(),
+              const Flexible(
+                child: Text('Nutri-Score',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
               ),
+              const Spacer(),
+              ...['a', 'b', 'c', 'd', 'e'].map((g) {
+                final isActive = g == score.toLowerCase();
+                return Container(
+                  margin: const EdgeInsets.only(left: 5),
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? _scoreColor(g)
+                        : Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Center(
+                    child: Text(g.toUpperCase(),
+                        style: TextStyle(
+                            color: isActive ? Colors.white : Colors.white38,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                );
+              }),
             ],
           ),
           const SizedBox(height: 12),
@@ -872,15 +890,24 @@ class _NutritionRow extends StatelessWidget {
             ],
           ),
         ),
-        Text(value,
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: alertColor ?? const Color(0xFF1A1A1A))),
-        if (alertColor != null) ...[
-          const SizedBox(width: 6),
-          Icon(Icons.warning_amber_rounded, size: 14, color: alertColor),
-        ],
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: alertColor ?? const Color(0xFF1A1A1A))),
+            ),
+            if (alertColor != null) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.warning_amber_rounded, size: 14, color: alertColor),
+            ],
+          ],
+        ),
       ],
     );
   }
