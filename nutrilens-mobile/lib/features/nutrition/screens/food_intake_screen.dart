@@ -227,14 +227,27 @@ class _SummaryCard extends ConsumerWidget {
                   valueColor: const AlwaysStoppedAnimation(Colors.white),
                 ),
               ),
+              const SizedBox(height: 12),
+              if (summary.remainingCalories != null)
+                Text(
+                  summary.remainingCalories! > 0
+                      ? '${summary.remainingCalories!.toInt()} kcal remaining today'
+                      : 'Daily target reached',
+                  style: TextStyle(
+                      color: summary.remainingCalories! > 0
+                          ? Colors.white70
+                          : Colors.greenAccent.shade100,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500),
+                ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _MacroChip('P', '${summary.totalProtein.toInt()}g', summary.proteinTarget),
-                  _MacroChip('C', '${summary.totalCarbs.toInt()}g', summary.carbsTarget),
-                  _MacroChip('F', '${summary.totalFat.toInt()}g', summary.fatTarget),
-                  _MacroChip('S', '${summary.totalSugar.toInt()}g', null),
+                  _MacroChip('P', '${summary.totalProtein.toInt()}g', summary.proteinTarget, summary.proteinAdherencePct),
+                  _MacroChip('C', '${summary.totalCarbs.toInt()}g', summary.carbsTarget, summary.carbsAdherencePct),
+                  _MacroChip('F', '${summary.totalFat.toInt()}g', summary.fatTarget, summary.fatAdherencePct),
+                  _MacroChip('S', '${summary.totalSugar.toInt()}g', null, null),
                 ],
               ),
             ],
@@ -277,15 +290,23 @@ class _MacroChip extends StatelessWidget {
   final String letter;
   final String value;
   final double? target;
-  const _MacroChip(this.letter, this.value, this.target);
+  final double? adherencePct;
+  const _MacroChip(this.letter, this.value, this.target, this.adherencePct);
+
+  Color get _statusColor {
+    if (adherencePct == null) return Colors.white70;
+    if (adherencePct! > 110) return Colors.orangeAccent;
+    if (adherencePct! >= 80) return Colors.greenAccent;
+    return Colors.white70;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(letter,
-            style: const TextStyle(
-                color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                color: _statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
         const SizedBox(height: 2),
         Text(value,
             style: const TextStyle(
@@ -293,6 +314,9 @@ class _MacroChip extends StatelessWidget {
         if (target != null)
           Text('/ ${target!.toInt()}g',
               style: const TextStyle(color: Colors.white60, fontSize: 10)),
+        if (adherencePct != null)
+          Text('${adherencePct!.toInt()}%',
+              style: TextStyle(color: _statusColor, fontSize: 10, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -461,7 +485,9 @@ class _IntakeTile extends StatelessWidget {
                           color: Color(0xFF2D3142))),
                   const SizedBox(height: 2),
                   Text(
-                      '${intake.quantity.toInt()}${intake.unit}'
+                      intake.unitLabel.isNotEmpty
+                          ? '${intake.quantity.toInt()} ${intake.unitLabel}'
+                          : '${intake.quantity.toInt()}${intake.unit}'
                       '${intake.protein != null ? ' · ${intake.protein!.toInt()}g P' : ''}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 ],
@@ -472,8 +498,6 @@ class _IntakeTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                     color: Color(0xFFEC6F2D))),
-            const SizedBox(width: 8),
-            const Icon(Icons.edit_outlined, size: 16, color: Colors.grey),
           ],
         ),
       ),
@@ -511,6 +535,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
   final _nameCtrl = TextEditingController();
   final _calCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
+  final _unitLabelCtrl = TextEditingController();
   final _proteinCtrl = TextEditingController();
   final _carbsCtrl = TextEditingController();
   final _fatCtrl = TextEditingController();
@@ -532,6 +557,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
       _nameCtrl.text = e.name;
       _calCtrl.text = e.calories.toString();
       _qtyCtrl.text = e.quantity.toString();
+      if (e.unitLabel.isNotEmpty) _unitLabelCtrl.text = e.unitLabel;
       if (e.protein != null) _proteinCtrl.text = e.protein!.toString();
       if (e.carbs != null) _carbsCtrl.text = e.carbs!.toString();
       if (e.fat != null) _fatCtrl.text = e.fat!.toString();
@@ -543,6 +569,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
     _nameCtrl.dispose();
     _calCtrl.dispose();
     _qtyCtrl.dispose();
+    _unitLabelCtrl.dispose();
     _proteinCtrl.dispose();
     _carbsCtrl.dispose();
     _fatCtrl.dispose();
@@ -567,7 +594,9 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
         'calories': cal,
         'quantity': qty,
         'unit': _unit,
+        if (_unitLabelCtrl.text.isNotEmpty) 'unit_label': _unitLabelCtrl.text.trim(),
         'meal_type': _mealType,
+        'source_type': 'manual',
         if (_proteinCtrl.text.isNotEmpty) 'protein': double.tryParse(_proteinCtrl.text),
         if (_carbsCtrl.text.isNotEmpty) 'carbs': double.tryParse(_carbsCtrl.text),
         if (_fatCtrl.text.isNotEmpty) 'fat': double.tryParse(_fatCtrl.text),
@@ -660,7 +689,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
                         DropdownButton<String>(
                           value: _unit,
                           underline: const SizedBox.shrink(),
-                          items: ['g', 'ml'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                          items: ['g', 'ml', 'unit'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                           onChanged: (v) => setState(() => _unit = v!),
                         ),
                       ],
@@ -668,6 +697,10 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
                   ),
                 ],
               ),
+              if (_unit == 'unit') ...[
+                const SizedBox(height: 8),
+                _Field(controller: _unitLabelCtrl, label: 'Unit name (optional)', hint: 'banana, slice, cup...'),
+              ],
               const SizedBox(height: 12),
               const Text('Macros (optional)',
                   style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),

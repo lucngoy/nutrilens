@@ -442,23 +442,23 @@ class ProductAnalysisView(APIView):
         })
 
 
+def _parse_date(date_str):
+    """Parse YYYY-MM-DD string to date, raises ValueError on invalid format."""
+    from datetime import datetime
+    return datetime.strptime(date_str, '%Y-%m-%d').date()
+
+
 class FoodIntakeListView(APIView):
-    """POST: log a food intake. GET: list today's intakes."""
+    """POST: log a food intake. GET: list for a given date (default: today UTC)."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         date_str = request.query_params.get('date')
-        qs = FoodIntake.objects.filter(user=request.user)
-        if date_str:
-            try:
-                from datetime import datetime
-                day = datetime.strptime(date_str, '%Y-%m-%d').date()
-            except ValueError:
-                return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
-            qs = qs.filter(consumed_at__date=day)
-        else:
-            today = timezone.now().date()
-            qs = qs.filter(consumed_at__date=today)
+        try:
+            day = _parse_date(date_str) if date_str else timezone.now().date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+        qs = FoodIntake.objects.filter(user=request.user, date=day)
         serializer = FoodIntakeSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -495,25 +495,26 @@ class FoodIntakeDetailView(APIView):
 
 
 class FoodIntakeSummaryView(APIView):
-    """GET daily totals — calories + macros for a given date."""
+    """GET daily totals — calories + macros + adherence per macro."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         date_str = request.query_params.get('date')
-        if date_str:
-            try:
-                from datetime import datetime
-                day = datetime.strptime(date_str, '%Y-%m-%d').date()
-            except ValueError:
-                return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
-        else:
-            day = timezone.now().date()
+        try:
+            day = _parse_date(date_str) if date_str else timezone.now().date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
-        intakes = FoodIntake.objects.filter(user=request.user, consumed_at__date=day)
+        intakes = FoodIntake.objects.filter(user=request.user, date=day)
 
         def _sum(field):
             vals = [getattr(i, field) for i in intakes if getattr(i, field) is not None]
             return round(sum(vals), 1) if vals else 0.0
+
+        def _adherence(total, target):
+            if target and target > 0:
+                return round(total / target * 100, 1)
+            return None
 
         profile = getattr(request.user, 'profile', None)
         calorie_target = profile.daily_calorie_target if profile else None
@@ -522,20 +523,32 @@ class FoodIntakeSummaryView(APIView):
         fat_target = profile.fat_target if profile else None
 
         total_calories = _sum('calories')
-        adherence = round(total_calories / calorie_target * 100, 1) if calorie_target else None
+        total_protein = _sum('protein')
+        total_carbs = _sum('carbs')
+        total_fat = _sum('fat')
+
+        remaining_calories = round(calorie_target - total_calories, 1) if calorie_target else None
 
         return Response({
             'date': str(day),
+            # Totals
             'total_calories': total_calories,
-            'total_protein': _sum('protein'),
-            'total_carbs': _sum('carbs'),
-            'total_fat': _sum('fat'),
+            'total_protein': total_protein,
+            'total_carbs': total_carbs,
+            'total_fat': total_fat,
             'total_sugar': _sum('sugar'),
             'total_salt': _sum('salt'),
+            # Targets
             'calorie_target': calorie_target,
             'protein_target': protein_target,
             'carbs_target': carbs_target,
             'fat_target': fat_target,
-            'adherence_pct': adherence,
+            # Adherence per macro
+            'adherence_pct': _adherence(total_calories, calorie_target),
+            'protein_adherence_pct': _adherence(total_protein, protein_target),
+            'carbs_adherence_pct': _adherence(total_carbs, carbs_target),
+            'fat_adherence_pct': _adherence(total_fat, fat_target),
+            # UX helper
+            'remaining_calories': remaining_calories,
             'entry_count': intakes.count(),
         })

@@ -97,9 +97,10 @@ class FoodIntakeSerializer(serializers.ModelSerializer):
     class Meta:
         model = FoodIntake
         fields = [
-            'id', 'product', 'name', 'image_url',
-            'quantity', 'unit',
+            'id', 'product', 'name', 'image_url', 'source_type',
+            'quantity', 'unit', 'unit_label',
             'calories', 'protein', 'carbs', 'fat', 'sugar', 'salt',
-            'meal_type', 'consumed_at', 'created_at',
+            'meal_type', 'consumed_at', 'date', 'weekday',
+            'confidence_score', 'created_at',
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'date', 'weekday', 'created_at']

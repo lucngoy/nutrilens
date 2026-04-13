@@ -200,6 +200,10 @@ class FoodIntake(models.Model):
         ('dinner', 'Dinner'),
         ('snack', 'Snack'),
     ]
+    SOURCE_CHOICES = [
+        ('scan', 'Scan'),
+        ('manual', 'Manual'),
+    ]
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='food_intakes')
@@ -210,10 +214,12 @@ class FoodIntake(models.Model):
         on_delete=models.SET_NULL, related_name='intakes')
     name = models.CharField(max_length=255)       # always filled (from product or manual)
     image_url = models.URLField(max_length=500, blank=True, default='')
+    source_type = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='manual')
 
     # Quantity
-    quantity = models.FloatField()                 # grams or ml
-    unit = models.CharField(max_length=10, default='g')  # g / ml
+    quantity = models.FloatField()                 # grams, ml, or units
+    unit = models.CharField(max_length=10, default='g')        # g / ml / unit
+    unit_label = models.CharField(max_length=50, blank=True, default='')  # banana / slice / cup
 
     # Macros snapshot (immutable — saved at log time)
     calories = models.FloatField()
@@ -225,12 +231,25 @@ class FoodIntake(models.Model):
 
     # Context
     meal_type = models.CharField(max_length=20, choices=MEAL_CHOICES, default='snack')
-    consumed_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(db_index=True)
+    date = models.DateField(db_index=True, default='2026-01-01')  # denormalized, synced in save()
+    weekday = models.IntegerField(default=0)                       # 0=Mon … 6=Sun — behaviour analytics
+
+    # Data quality
+    confidence_score = models.FloatField(default=1.0)  # 1.0=certain, <1.0=estimated/AI
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-consumed_at']
+        indexes = [
+            models.Index(fields=['user', 'date']),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.date = self.consumed_at.date() if hasattr(self.consumed_at, 'date') else self.consumed_at
+        self.weekday = self.consumed_at.weekday()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.user.username} - {self.name} ({self.consumed_at:%Y-%m-%d})"
