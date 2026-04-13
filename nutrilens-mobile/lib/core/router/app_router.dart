@@ -17,6 +17,7 @@ import '../../features/inventory/screens/add_inventory_screen.dart';
 import '../../features/inventory/screens/inventory_detail_screen.dart';
 import '../../features/inventory/models/inventory_model.dart';
 import '../../features/scanner/models/product_model.dart';
+import '../../features/nutrition/screens/food_intake_screen.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
@@ -91,6 +92,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             final item = state.extra as InventoryItem;
             return InventoryDetailScreen(item: item);
         },),
+      GoRoute(
+          path: '/food-intake',
+          builder: (context, state) => const FoodIntakeScreen()),
     ],
   );
 });

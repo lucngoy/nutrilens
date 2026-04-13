@@ -4,7 +4,8 @@ from .views import (
     RegisterView, ProfileView, AvatarUploadView, TokenObtainPairView,
     ChangePasswordView, HealthSnapshotListView, MedicalDocumentListView,
     MedicalDocumentUploadView, MedicalDocumentDetailView,
-    ProductAnalysisView,
+    ProductAnalysisView, FoodIntakeListView, FoodIntakeDetailView,
+    FoodIntakeSummaryView,
 )
 
 urlpatterns = [
@@ -25,4 +26,9 @@ urlpatterns = [
 
     # Product analysis — NL-23 to NL-26
     path('health/analyze/', ProductAnalysisView.as_view(), name='product_analysis'),
+
+    # Food intake — NL-47
+    path('food-intake/', FoodIntakeListView.as_view(), name='food_intake_list'),
+    path('food-intake/<int:pk>/', FoodIntakeDetailView.as_view(), name='food_intake_detail'),
+    path('food-intake/summary/', FoodIntakeSummaryView.as_view(), name='food_intake_summary'),
 ]

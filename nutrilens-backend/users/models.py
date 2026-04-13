@@ -192,6 +192,50 @@ class HealthSnapshot(models.Model):
         return f"{self.user.username} - snapshot {self.recorded_at:%Y-%m-%d}"
 
 
+class FoodIntake(models.Model):
+    """Daily food consumption log — NL-47."""
+    MEAL_CHOICES = [
+        ('breakfast', 'Breakfast'),
+        ('lunch', 'Lunch'),
+        ('dinner', 'Dinner'),
+        ('snack', 'Snack'),
+    ]
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='food_intakes')
+
+    # Source — either linked to inventory or manual entry
+    product = models.ForeignKey(
+        'inventory.InventoryItem', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='intakes')
+    name = models.CharField(max_length=255)       # always filled (from product or manual)
+    image_url = models.URLField(max_length=500, blank=True, default='')
+
+    # Quantity
+    quantity = models.FloatField()                 # grams or ml
+    unit = models.CharField(max_length=10, default='g')  # g / ml
+
+    # Macros snapshot (immutable — saved at log time)
+    calories = models.FloatField()
+    protein = models.FloatField(null=True, blank=True)
+    carbs = models.FloatField(null=True, blank=True)
+    fat = models.FloatField(null=True, blank=True)
+    sugar = models.FloatField(null=True, blank=True)
+    salt = models.FloatField(null=True, blank=True)
+
+    # Context
+    meal_type = models.CharField(max_length=20, choices=MEAL_CHOICES, default='snack')
+    consumed_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-consumed_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name} ({self.consumed_at:%Y-%m-%d})"
+
+
 class MedicalDocument(models.Model):
     """Medical documents uploaded by the user (NL-29/30)."""
     TYPE_CHOICES = [

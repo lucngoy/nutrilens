@@ -5,10 +5,11 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import HealthSnapshot, MedicalDocument
+from django.utils import timezone
+from .models import HealthSnapshot, MedicalDocument, FoodIntake
 from .serializers import (
     RegisterSerializer, UserSerializer, UserProfileSerializer,
-    HealthSnapshotSerializer, MedicalDocumentSerializer,
+    HealthSnapshotSerializer, MedicalDocumentSerializer, FoodIntakeSerializer,
 )
 
 
@@ -438,4 +439,103 @@ class ProductAnalysisView(APIView):
             'recommendations': list(dict.fromkeys(recommendations)),
             'score': score,
             'reasons': reasons,
+        })
+
+
+class FoodIntakeListView(APIView):
+    """POST: log a food intake. GET: list today's intakes."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        date_str = request.query_params.get('date')
+        qs = FoodIntake.objects.filter(user=request.user)
+        if date_str:
+            try:
+                from datetime import datetime
+                day = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+            qs = qs.filter(consumed_at__date=day)
+        else:
+            today = timezone.now().date()
+            qs = qs.filter(consumed_at__date=today)
+        serializer = FoodIntakeSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = FoodIntakeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FoodIntakeDetailView(APIView):
+    """PATCH / DELETE a food intake entry."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            intake = FoodIntake.objects.get(pk=pk, user=request.user)
+        except FoodIntake.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = FoodIntakeSerializer(intake, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        try:
+            intake = FoodIntake.objects.get(pk=pk, user=request.user)
+        except FoodIntake.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        intake.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FoodIntakeSummaryView(APIView):
+    """GET daily totals — calories + macros for a given date."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                from datetime import datetime
+                day = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+        else:
+            day = timezone.now().date()
+
+        intakes = FoodIntake.objects.filter(user=request.user, consumed_at__date=day)
+
+        def _sum(field):
+            vals = [getattr(i, field) for i in intakes if getattr(i, field) is not None]
+            return round(sum(vals), 1) if vals else 0.0
+
+        profile = getattr(request.user, 'profile', None)
+        calorie_target = profile.daily_calorie_target if profile else None
+        protein_target = profile.protein_target if profile else None
+        carbs_target = profile.carbs_target if profile else None
+        fat_target = profile.fat_target if profile else None
+
+        total_calories = _sum('calories')
+        adherence = round(total_calories / calorie_target * 100, 1) if calorie_target else None
+
+        return Response({
+            'date': str(day),
+            'total_calories': total_calories,
+            'total_protein': _sum('protein'),
+            'total_carbs': _sum('carbs'),
+            'total_fat': _sum('fat'),
+            'total_sugar': _sum('sugar'),
+            'total_salt': _sum('salt'),
+            'calorie_target': calorie_target,
+            'protein_target': protein_target,
+            'carbs_target': carbs_target,
+            'fat_target': fat_target,
+            'adherence_pct': adherence,
+            'entry_count': intakes.count(),
         })

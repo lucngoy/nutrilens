@@ -152,11 +152,10 @@ class HomeScreen extends ConsumerWidget {
                         children: [
                             Expanded(
                             child: _QuickCard(
-                                icon: Icons.bar_chart_rounded,
-                                label: 'Reports',
-                                subtitle: 'Weekly stats',
-                                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Coming in Sprint 2!'))),
+                                icon: Icons.restaurant_menu_outlined,
+                                label: 'Food Intake',
+                                subtitle: 'Log your meals',
+                                onTap: () => context.push('/food-intake'),
                             ),
                             ),
                             const SizedBox(width: 12),

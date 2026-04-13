@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile, HealthSnapshot, MedicalDocument
+from .models import UserProfile, HealthSnapshot, MedicalDocument, FoodIntake
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -91,3 +91,15 @@ class MedicalDocumentSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'document_type', 'file',
                   'notes', 'uploaded_at']
         read_only_fields = ['id', 'uploaded_at']
+
+
+class FoodIntakeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FoodIntake
+        fields = [
+            'id', 'product', 'name', 'image_url',
+            'quantity', 'unit',
+            'calories', 'protein', 'carbs', 'fat', 'sugar', 'salt',
+            'meal_type', 'consumed_at', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
