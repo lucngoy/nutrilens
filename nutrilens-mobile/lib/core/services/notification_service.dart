@@ -1,10 +1,14 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import '../../features/inventory/models/inventory_model.dart';
+import '../../features/nutrition/models/food_intake_model.dart';
 
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
+  static final _storage = FlutterSecureStorage();
+  static const _kLastIntakeAlertKey = 'last_intake_alert_ts';
   static bool _initialized = false;
 
   static void Function(String?)? onNotificationTap;
@@ -117,6 +121,51 @@ class NotificationService {
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
+  }
+
+  /// Sends a nutrition adherence alert — throttled to once every 3 hours.
+  /// Call this after the user logs a food entry.
+  static Future<void> checkIntakeAdherence(DailySummary summary) async {
+    if (summary.status == 'on_track') return;
+
+    // Throttle: skip if already notified in the last 3 hours
+    final lastStr = await _storage.read(key: _kLastIntakeAlertKey);
+    if (lastStr != null) {
+      final last = DateTime.tryParse(lastStr);
+      if (last != null && DateTime.now().difference(last).inHours < 3) return;
+    }
+
+    String title, body;
+    if (summary.status == 'exceeded') {
+      if (summary.adherencePct != null && summary.adherencePct! > 110) {
+        title = 'NutriLens — Calorie target exceeded';
+        body = "You've exceeded your calorie target today";
+      } else if (summary.proteinAdherencePct != null && summary.proteinAdherencePct! > 110) {
+        title = 'NutriLens — Protein target exceeded';
+        body = 'High protein intake detected today';
+      } else if (summary.carbsAdherencePct != null && summary.carbsAdherencePct! > 110) {
+        title = 'NutriLens — Carbs target exceeded';
+        body = 'High carb intake detected today';
+      } else {
+        title = 'NutriLens — Fat target exceeded';
+        body = 'High fat intake detected today';
+      }
+    } else {
+      title = 'NutriLens — Almost at your limit';
+      final rem = summary.remainingCalories?.toInt() ?? 0;
+      body = 'Only $rem kcal remaining today';
+    }
+
+    await showNotification(
+      id: 10,
+      title: title,
+      body: body,
+      payload: 'food_intake',
+    );
+    await _storage.write(
+      key: _kLastIntakeAlertKey,
+      value: DateTime.now().toIso8601String(),
+    );
   }
 
   static Future<void> checkInventoryAlerts(

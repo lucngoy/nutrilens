@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/services/notification_service.dart';
 import '../models/food_intake_model.dart';
 import '../providers/food_intake_provider.dart';
 
@@ -14,6 +15,13 @@ class FoodIntakeScreen extends ConsumerStatefulWidget {
 class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
   static const _primary = Color(0xFFEC6F2D);
   DateTime _selectedDate = DateTime.now();
+  final _listScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
 
   String get _dateKey {
     final d = _selectedDate;
@@ -70,15 +78,40 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
             onNext: _isToday ? null : () => _goToDate(1),
           ),
           _SummaryCard(dateKey: _dateKey),
-          Expanded(child: _IntakeList(onDelete: _onDelete, onEdit: _showEditSheet)),
+          _AdherenceBanner(onReview: _scrollToList),
+          Expanded(child: _IntakeList(
+            onDelete: _onDelete,
+            onEdit: _showEditSheet,
+            scrollController: _listScrollController,
+          )),
         ],
       ),
     );
   }
 
+  void _scrollToList() {
+    if (_listScrollController.hasClients) {
+      _listScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _onDelete(int id) async {
     await ref.read(foodIntakeProvider.notifier).deleteIntake(id);
     ref.read(dailySummaryProvider.notifier).fetch(date: _dateKey);
+  }
+
+  Future<void> _afterLog() async {
+    await Future.wait([
+      ref.read(foodIntakeProvider.notifier).fetchToday(date: _dateKey),
+      ref.read(dailySummaryProvider.notifier).fetch(date: _dateKey),
+    ]);
+    ref.read(dailySummaryProvider).whenData((summary) {
+      if (summary != null) NotificationService.checkIntakeAdherence(summary);
+    });
   }
 
   void _showLogSheet() {
@@ -87,10 +120,8 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _LogIntakeSheet(
-        onSaved: () {
-          ref.read(foodIntakeProvider.notifier).fetchToday(date: _dateKey);
-          ref.read(dailySummaryProvider.notifier).fetch(date: _dateKey);
-        },
+        selectedDate: _selectedDate,
+        onSaved: _afterLog,
       ),
     );
   }
@@ -322,12 +353,88 @@ class _MacroChip extends StatelessWidget {
   }
 }
 
+// ── Adherence banner ─────────────────────────────────────────────────────────
+
+String? _bannerMessage(DailySummary summary) {
+  if (summary.adherencePct != null && summary.adherencePct! > 110) {
+    return 'Calorie target exceeded — Review your intake';
+  }
+  if (summary.proteinAdherencePct != null && summary.proteinAdherencePct! > 110) {
+    return 'Protein target exceeded — Review your intake';
+  }
+  if (summary.carbsAdherencePct != null && summary.carbsAdherencePct! > 110) {
+    return 'Carbs target exceeded — Review your intake';
+  }
+  if (summary.fatAdherencePct != null && summary.fatAdherencePct! > 110) {
+    return 'Fat target exceeded — Review your intake';
+  }
+  if (summary.remainingCalories != null &&
+      summary.remainingCalories! > 0 &&
+      summary.remainingCalories! <= 200) {
+    return 'Almost at your limit — ${summary.remainingCalories!.toInt()} kcal remaining';
+  }
+  return null;
+}
+
+class _AdherenceBanner extends ConsumerWidget {
+  final VoidCallback onReview;
+  const _AdherenceBanner({required this.onReview});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summaryState = ref.watch(dailySummaryProvider);
+    return summaryState.maybeWhen(
+      data: (summary) {
+        if (summary == null || summary.status == 'on_track') return const SizedBox.shrink();
+        final message = _bannerMessage(summary);
+        if (message == null) return const SizedBox.shrink();
+        final isExceeded = summary.status == 'exceeded';
+        final color = isExceeded ? Colors.red.shade700 : Colors.orange.shade800;
+        final bgColor = isExceeded ? Colors.red.shade50 : Colors.orange.shade50;
+        final borderColor = isExceeded ? Colors.red.shade200 : Colors.orange.shade200;
+        return GestureDetector(
+          onTap: onReview,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isExceeded ? Icons.warning_amber_rounded : Icons.info_outline,
+                  color: color,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                        color: color, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: color, size: 18),
+              ],
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
 // ── Intake list ───────────────────────────────────────────────────────────────
 
 class _IntakeList extends ConsumerWidget {
   final Future<void> Function(int id) onDelete;
   final void Function(FoodIntake) onEdit;
-  const _IntakeList({required this.onDelete, required this.onEdit});
+  final ScrollController? scrollController;
+  const _IntakeList({required this.onDelete, required this.onEdit, this.scrollController});
 
   static const _mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
   static const _mealLabels = {
@@ -377,6 +484,7 @@ class _IntakeList extends ConsumerWidget {
         final sections = _mealOrder.where((m) => grouped.containsKey(m)).toList();
 
         return ListView.builder(
+          controller: scrollController,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
           itemCount: sections.length,
           itemBuilder: (ctx, si) {
@@ -523,7 +631,8 @@ class _IntakeTile extends StatelessWidget {
 class _LogIntakeSheet extends StatefulWidget {
   final VoidCallback onSaved;
   final FoodIntake? existing;
-  const _LogIntakeSheet({required this.onSaved, this.existing});
+  final DateTime? selectedDate;
+  const _LogIntakeSheet({required this.onSaved, this.existing, this.selectedDate});
 
   @override
   State<_LogIntakeSheet> createState() => _LogIntakeSheetState();
@@ -605,7 +714,10 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
       if (_isEdit) {
         await ref.read(foodIntakeProvider.notifier).updateIntake(widget.existing!.id, data);
       } else {
-        data['consumed_at'] = DateTime.now().toIso8601String();
+        final now = DateTime.now();
+        final date = widget.selectedDate ?? now;
+        final consumedAt = DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second);
+        data['consumed_at'] = consumedAt.toIso8601String();
         await ref.read(foodIntakeProvider.notifier).logIntake(data);
       }
       widget.onSaved();

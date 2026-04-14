@@ -529,6 +529,24 @@ class FoodIntakeSummaryView(APIView):
 
         remaining_calories = round(calorie_target - total_calories, 1) if calorie_target else None
 
+        adherence_calories = _adherence(total_calories, calorie_target)
+        adherence_protein = _adherence(total_protein, protein_target)
+        adherence_carbs = _adherence(total_carbs, carbs_target)
+        adherence_fat = _adherence(total_fat, fat_target)
+
+        macro_adherences = [adherence_protein, adherence_carbs, adherence_fat]
+
+        def _status():
+            if adherence_calories and adherence_calories > 110:
+                return 'exceeded'
+            if any(a and a > 110 for a in macro_adherences):
+                return 'exceeded'
+            if remaining_calories is not None and 0 < remaining_calories <= 200:
+                return 'warning'
+            if any(a and a > 90 for a in macro_adherences):
+                return 'warning'
+            return 'on_track'
+
         return Response({
             'date': str(day),
             # Totals
@@ -544,11 +562,12 @@ class FoodIntakeSummaryView(APIView):
             'carbs_target': carbs_target,
             'fat_target': fat_target,
             # Adherence per macro
-            'adherence_pct': _adherence(total_calories, calorie_target),
-            'protein_adherence_pct': _adherence(total_protein, protein_target),
-            'carbs_adherence_pct': _adherence(total_carbs, carbs_target),
-            'fat_adherence_pct': _adherence(total_fat, fat_target),
-            # UX helper
+            'adherence_pct': adherence_calories,
+            'protein_adherence_pct': adherence_protein,
+            'carbs_adherence_pct': adherence_carbs,
+            'fat_adherence_pct': adherence_fat,
+            # UX helpers
             'remaining_calories': remaining_calories,
+            'status': _status(),
             'entry_count': intakes.count(),
         })

@@ -102,6 +102,7 @@ class DailySummary {
   final double? carbsAdherencePct;
   final double? fatAdherencePct;
   final double? remainingCalories;
+  final String status; // on_track | warning | exceeded
   final int entryCount;
 
   const DailySummary({
@@ -121,6 +122,7 @@ class DailySummary {
     this.carbsAdherencePct,
     this.fatAdherencePct,
     this.remainingCalories,
+    this.status = 'on_track',
     required this.entryCount,
   });
 
@@ -142,6 +144,7 @@ class DailySummary {
       carbsAdherencePct: (json['carbs_adherence_pct'] as num?)?.toDouble(),
       fatAdherencePct: (json['fat_adherence_pct'] as num?)?.toDouble(),
       remainingCalories: (json['remaining_calories'] as num?)?.toDouble(),
+      status: (json['status'] as String? ?? 'on_track'),
       entryCount: (json['entry_count'] as int? ?? 0),
     );
   }
