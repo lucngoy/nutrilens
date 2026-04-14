@@ -448,6 +448,13 @@ def _parse_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d').date()
 
 
+def _parse_week(week_str):
+    """Parse 'YYYY-Www' (e.g. 2026-W15) → (week_start, week_end) as date objects."""
+    from datetime import datetime, timedelta
+    dt = datetime.strptime(week_str + '-1', '%G-W%V-%u').date()
+    return dt, dt + timedelta(days=6)
+
+
 class FoodIntakeListView(APIView):
     """POST: log a food intake. GET: list for a given date (default: today UTC)."""
     permission_classes = [permissions.IsAuthenticated]
@@ -492,6 +499,181 @@ class FoodIntakeDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         intake.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FoodIntakeWeeklyView(APIView):
+    """GET weekly report — NL-49. ?week=2026-W15 (default: current ISO week)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from datetime import timedelta
+        week_str = request.query_params.get('week')
+        try:
+            if week_str:
+                week_start, week_end = _parse_week(week_str)
+            else:
+                today = timezone.now().date()
+                # ISO weekday: Mon=1 … Sun=7
+                week_start = today - timedelta(days=today.weekday())
+                week_end = week_start + timedelta(days=6)
+        except ValueError:
+            return Response(
+                {'error': 'Invalid week format. Use YYYY-Www (e.g. 2026-W15).'},
+                status=400,
+            )
+
+        profile = getattr(request.user, 'profile', None)
+        calorie_target = profile.daily_calorie_target if profile else None
+        protein_target = profile.protein_target if profile else None
+        carbs_target = profile.carbs_target if profile else None
+        fat_target = profile.fat_target if profile else None
+
+        # Single query covering the whole week
+        intakes = FoodIntake.objects.filter(
+            user=request.user,
+            date__range=[week_start, week_end],
+        )
+
+        # Group intakes by date
+        from collections import defaultdict
+        by_date = defaultdict(list)
+        for i in intakes:
+            by_date[i.date].append(i)
+
+        def _day_status(total_cal, cal_target, has_data):
+            if not has_data:
+                return 'no_data'
+            if cal_target and cal_target > 0:
+                pct = total_cal / cal_target * 100
+                if pct > 110:
+                    return 'exceeded'
+                if total_cal > 0 and cal_target - total_cal <= 200:
+                    return 'warning'
+            return 'on_track'
+
+        days = []
+        cal_totals_with_data = []
+
+        for offset in range(7):
+            day = week_start + timedelta(days=offset)
+            day_intakes = by_date.get(day, [])
+            has_data = len(day_intakes) > 0
+
+            total_cal = round(sum(i.calories for i in day_intakes), 1)
+            total_protein = round(sum(i.protein or 0 for i in day_intakes), 1)
+            total_carbs = round(sum(i.carbs or 0 for i in day_intakes), 1)
+            total_fat = round(sum(i.fat or 0 for i in day_intakes), 1)
+
+            adherence = round(total_cal / calorie_target * 100, 1) if (calorie_target and calorie_target > 0) else None
+
+            days.append({
+                'date': str(day),
+                'weekday': day.weekday(),  # 0=Mon … 6=Sun
+                'has_data': has_data,
+                'total_calories': total_cal,
+                'total_protein': total_protein,
+                'total_carbs': total_carbs,
+                'total_fat': total_fat,
+                'calorie_target': calorie_target,
+                'protein_target': protein_target,
+                'carbs_target': carbs_target,
+                'fat_target': fat_target,
+                'adherence_pct': adherence,
+                'status': _day_status(total_cal, calorie_target, has_data),
+                'entry_count': len(day_intakes),
+            })
+
+            if has_data:
+                cal_totals_with_data.append((str(day), total_cal))
+
+        # ── Weekly aggregates ────────────────────────────────────────────────
+        days_with_data = [d for d in days if d['has_data']]
+        days_on_track = sum(1 for d in days if d['status'] == 'on_track')
+        days_warning = sum(1 for d in days if d['status'] == 'warning')
+        days_exceeded = sum(1 for d in days if d['status'] == 'exceeded')
+        days_no_data = sum(1 for d in days if d['status'] == 'no_data')
+
+        avg_calories = round(
+            sum(d['total_calories'] for d in days_with_data) / len(days_with_data), 1
+        ) if days_with_data else 0.0
+        avg_protein = round(
+            sum(d['total_protein'] for d in days_with_data) / len(days_with_data), 1
+        ) if days_with_data else 0.0
+
+        # best/worst = closest/furthest from target (distance logic)
+        best_day = worst_day = None
+        if days_with_data and calorie_target:
+            sorted_by_distance = sorted(
+                days_with_data,
+                key=lambda d: abs(d['total_calories'] - calorie_target),
+            )
+            best_day = sorted_by_distance[0]['date']
+            worst_day = sorted_by_distance[-1]['date']
+        elif days_with_data:
+            best_day = max(days_with_data, key=lambda d: d['total_calories'])['date']
+            worst_day = min(days_with_data, key=lambda d: d['total_calories'])['date']
+
+        # ── Trend vs previous week ───────────────────────────────────────────
+        prev_start = week_start - timedelta(days=7)
+        prev_end = week_start - timedelta(days=1)
+        prev_intakes = FoodIntake.objects.filter(
+            user=request.user,
+            date__range=[prev_start, prev_end],
+        )
+        prev_by_date = defaultdict(list)
+        for i in prev_intakes:
+            prev_by_date[i.date].append(i)
+
+        prev_days_with_data = [
+            d for offset in range(7)
+            for d in [prev_start + timedelta(days=offset)]
+            if prev_by_date.get(d)
+        ]
+        if prev_days_with_data:
+            prev_avg = sum(
+                sum(i.calories for i in prev_by_date[d])
+                for d in prev_days_with_data
+            ) / len(prev_days_with_data)
+        else:
+            prev_avg = None
+
+        if prev_avg and avg_calories:
+            diff = avg_calories - prev_avg
+            if abs(diff) < 50:
+                trend = 'stable'
+            elif diff > 0:
+                trend = 'up'
+            else:
+                trend = 'down'
+        else:
+            trend = 'stable'
+
+        # Trend label for display
+        trend_labels = {
+            'up': 'More calories than last week',
+            'down': 'Fewer calories than last week',
+            'stable': 'Similar intake to last week',
+        }
+
+        return Response({
+            'week': week_str or week_start.strftime('%G-W%V'),
+            'week_start': str(week_start),
+            'week_end': str(week_end),
+            'days': days,
+            'summary': {
+                'avg_calories': avg_calories,
+                'avg_protein': avg_protein,
+                'calorie_target': calorie_target,
+                'best_day': best_day,
+                'worst_day': worst_day,
+                'days_on_track': days_on_track,
+                'days_warning': days_warning,
+                'days_exceeded': days_exceeded,
+                'days_no_data': days_no_data,
+                'trend': trend,
+                'trend_label': trend_labels[trend],
+            },
+        })
 
 
 class FoodIntakeSummaryView(APIView):

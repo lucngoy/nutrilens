@@ -18,6 +18,7 @@ import '../../features/inventory/screens/inventory_detail_screen.dart';
 import '../../features/inventory/models/inventory_model.dart';
 import '../../features/scanner/models/product_model.dart';
 import '../../features/nutrition/screens/food_intake_screen.dart';
+import '../../features/nutrition/screens/weekly_report_screen.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
@@ -95,6 +96,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/food-intake',
           builder: (context, state) => const FoodIntakeScreen()),
+      GoRoute(
+          path: '/weekly-report',
+          builder: (context, state) => const WeeklyReportScreen()),
     ],
   );
 });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_dialogs.dart';
 import '../../../core/services/notification_service.dart';
 import '../models/food_intake_model.dart';
@@ -63,6 +64,14 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
         title: const Text('Food Intake',
             style: TextStyle(color: Color(0xFF2D3142), fontWeight: FontWeight.w700)),
         iconTheme: const IconThemeData(color: Color(0xFF2D3142)),
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push('/weekly-report'),
+            icon: const Icon(Icons.bar_chart, size: 16, color: Color(0xFFEC6F2D)),
+            label: const Text('Weekly',
+                style: TextStyle(color: Color(0xFFEC6F2D), fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: _primary,

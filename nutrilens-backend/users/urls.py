@@ -5,7 +5,7 @@ from .views import (
     ChangePasswordView, HealthSnapshotListView, MedicalDocumentListView,
     MedicalDocumentUploadView, MedicalDocumentDetailView,
     ProductAnalysisView, FoodIntakeListView, FoodIntakeDetailView,
-    FoodIntakeSummaryView,
+    FoodIntakeSummaryView, FoodIntakeWeeklyView,
 )
 
 urlpatterns = [
@@ -31,4 +31,5 @@ urlpatterns = [
     path('food-intake/', FoodIntakeListView.as_view(), name='food_intake_list'),
     path('food-intake/<int:pk>/', FoodIntakeDetailView.as_view(), name='food_intake_detail'),
     path('food-intake/summary/', FoodIntakeSummaryView.as_view(), name='food_intake_summary'),
+    path('food-intake/weekly/', FoodIntakeWeeklyView.as_view(), name='food_intake_weekly'),
 ]

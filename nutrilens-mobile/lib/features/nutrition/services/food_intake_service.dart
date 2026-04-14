@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../models/food_intake_model.dart';
+import '../models/weekly_report_model.dart';
 
 class FoodIntakeService {
   final Dio _dio = ApiClient.instance;
@@ -29,5 +30,11 @@ class FoodIntakeService {
     final params = date != null ? {'date': date} : <String, dynamic>{};
     final response = await _dio.get('/users/food-intake/summary/', queryParameters: params);
     return DailySummary.fromJson(response.data);
+  }
+
+  Future<WeeklyReport> getWeeklyReport({String? week}) async {
+    final params = week != null ? {'week': week} : <String, dynamic>{};
+    final response = await _dio.get('/users/food-intake/weekly/', queryParameters: params);
+    return WeeklyReport.fromJson(response.data);
   }
 }
