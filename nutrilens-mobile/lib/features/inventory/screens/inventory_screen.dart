@@ -279,7 +279,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(inventoryProvider);
 
-    return Scaffold(
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       body: inventoryState.when(
         loading: () => const Center(
@@ -753,6 +756,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           );
         },
       ),
+    ),
     );
   }
 }

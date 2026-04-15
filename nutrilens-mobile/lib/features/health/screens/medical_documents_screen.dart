@@ -39,7 +39,10 @@ class _MedicalDocumentsScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(medicalDocumentsProvider);
 
-    return Scaffold(
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       body: Column(
         children: [
@@ -225,10 +228,10 @@ class _MedicalDocumentsScreenState
                               ],
                             ),
                           ),
-                          child: _DocumentCard(
-                            doc: filtered[i],
-                            onEdit: () => _showEditSheet(context, filtered[i]),
-                            onDelete: () => _confirmDelete(context, filtered[i]),
+                          child: InkWell(
+                            onTap: () => _showEditSheet(context, filtered[i]),
+                            borderRadius: BorderRadius.circular(16),
+                            child: _DocumentCard(doc: filtered[i]),
                           ),
                         ),
                       );
@@ -237,6 +240,7 @@ class _MedicalDocumentsScreenState
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -339,46 +343,81 @@ class _MedicalDocumentsScreenState
                 ),
               ],
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          final title = titleController.text.trim();
-                          if (title.isEmpty) return;
-                          setModalState(() { isSaving = true; errorMessage = null; });
-                          try {
-                            await ref
-                                .read(medicalDocumentsProvider.notifier)
-                                .updateDocument(doc.id,
-                                    title: title,
-                                    notes: notesController.text.trim());
-                            if (context.mounted) Navigator.pop(ctx);
-                          } catch (e) {
-                            setModalState(() {
-                              isSaving = false;
-                              errorMessage = e.toString();
-                            });
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
+              Row(
+                children: [
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                      onPressed: isSaving ? null : () async {
+                        final confirmed = await AppDialogs.warning(
+                          ctx,
+                          title: 'Delete Document',
+                          message: 'Delete "${doc.title}"? This cannot be undone.',
+                          confirmLabel: 'Delete',
+                        );
+                        if (confirmed != true) return;
+                        try {
+                          await ref
+                              .read(medicalDocumentsProvider.notifier)
+                              .deleteDocument(doc.id);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        } catch (e) {
+                          setModalState(() => errorMessage = e.toString());
+                        }
+                      },
+                      child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    ),
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Save',
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w600)),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                final title = titleController.text.trim();
+                                if (title.isEmpty) return;
+                                setModalState(() { isSaving = true; errorMessage = null; });
+                                try {
+                                  await ref
+                                      .read(medicalDocumentsProvider.notifier)
+                                      .updateDocument(doc.id,
+                                          title: title,
+                                          notes: notesController.text.trim());
+                                  if (context.mounted) Navigator.pop(ctx);
+                                } catch (e) {
+                                  setModalState(() {
+                                    isSaving = false;
+                                    errorMessage = e.toString();
+                                  });
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Text('Save',
+                                style: TextStyle(
+                                    color: Colors.white, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -472,15 +511,25 @@ class _MedicalDocumentsScreenState
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-              24, 12, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.92,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, scrollController) => GestureDetector(
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            behavior: HitTestBehavior.opaque,
+            child: SingleChildScrollView(
+            controller: scrollController,
+            padding: EdgeInsets.fromLTRB(
+                24, 12, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
@@ -686,7 +735,9 @@ class _MedicalDocumentsScreenState
           ),
         ),
       ),
-    );
+    ),
+    ),
+  );
   }
 
   Future<void> _confirmDelete(BuildContext context, MedicalDocument doc) async {
@@ -745,10 +796,8 @@ class _MedicalDocumentsScreenState
 
 class _DocumentCard extends StatelessWidget {
   final MedicalDocument doc;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
-  const _DocumentCard({required this.doc, required this.onEdit, required this.onDelete});
+  const _DocumentCard({required this.doc});
 
   static const primaryColor = Color(0xFFEC6F2D);
 
@@ -824,37 +873,7 @@ class _DocumentCard extends StatelessWidget {
             ),
           ),
 
-          // Edit
-          InkWell(
-            onTap: onEdit,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.edit_outlined,
-                  color: Color(0xFF4A6CF7), size: 16),
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Delete
-          InkWell(
-            onTap: onDelete,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF0F0),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.delete_outline_rounded,
-                  color: Colors.red, size: 18),
-            ),
-          ),
+          const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
         ],
       ),
     );

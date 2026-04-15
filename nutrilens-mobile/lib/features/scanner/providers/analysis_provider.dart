@@ -10,6 +10,12 @@ final analysisProvider = StateNotifierProvider<AnalysisNotifier,
   return AnalysisNotifier(AnalysisService());
 });
 
+// Separate autoDispose provider for inventory detail (no conflict with scanner).
+final inventoryAnalysisProvider = StateNotifierProvider.autoDispose<
+    AnalysisNotifier, AsyncValue<AnalysisResult?>>((ref) {
+  return AnalysisNotifier(AnalysisService());
+});
+
 class AnalysisNotifier extends StateNotifier<AsyncValue<AnalysisResult?>> {
   final AnalysisService _service;
 

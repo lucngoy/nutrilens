@@ -58,21 +58,6 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Food Intake',
-            style: TextStyle(color: Color(0xFF2D3142), fontWeight: FontWeight.w700)),
-        iconTheme: const IconThemeData(color: Color(0xFF2D3142)),
-        actions: [
-          TextButton.icon(
-            onPressed: () => context.push('/weekly-report'),
-            icon: const Icon(Icons.bar_chart, size: 16, color: Color(0xFFEC6F2D)),
-            label: const Text('Weekly',
-                style: TextStyle(color: Color(0xFFEC6F2D), fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: _primary,
         onPressed: _showLogSheet,
@@ -80,6 +65,48 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
       ),
       body: Column(
         children: [
+          // Header
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.fromLTRB(
+                24, MediaQuery.of(context).padding.top + 16, 24, 16),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/home'),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.chevron_left,
+                        color: _primary, size: 24),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Food Intake',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A))),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.push('/weekly-report'),
+                  icon: const Icon(Icons.bar_chart, size: 16, color: _primary),
+                  label: const Text('Weekly',
+                      style: TextStyle(
+                          color: _primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
           _DateBar(
             date: _selectedDate,
             isToday: _isToday,
@@ -856,21 +883,52 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
               ],
 
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              Row(
+                children: [
+                  if (_isEdit) ...[
+                    SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        onPressed: _saving ? null : () async {
+                          final confirmed = await AppDialogs.warning(
+                            context,
+                            title: 'Delete entry?',
+                            message: 'Remove "${widget.existing!.name}" from your log?',
+                            confirmLabel: 'Delete',
+                          );
+                          if (confirmed != true) return;
+                          await ref.read(foodIntakeProvider.notifier).deleteIntake(widget.existing!.id);
+                          widget.onSaved();
+                          if (mounted) Navigator.pop(context);
+                        },
+                        child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: _saving ? null : () => _save(ref),
+                        child: _saving
+                            ? const SizedBox(width: 20, height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text(_isEdit ? 'Save Changes' : 'Log Food',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                      ),
+                    ),
                   ),
-                  onPressed: _saving ? null : () => _save(ref),
-                  child: _saving
-                      ? const SizedBox(width: 20, height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text(_isEdit ? 'Save Changes' : 'Log Food',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
-                ),
+                ],
               ),
             ],
           ),
