@@ -58,11 +58,22 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text('Health History',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A))),
+                const Expanded(
+                  child: Text('Health History',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A))),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.push('/health-progress'),
+                  icon: const Icon(Icons.show_chart, size: 16, color: Color(0xFFEC6F2D)),
+                  label: const Text('Progress',
+                      style: TextStyle(
+                          color: Color(0xFFEC6F2D),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
           ),
@@ -74,7 +85,9 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
               error: (e, _) => Center(
                   child: Text(e.toString(),
                       style: const TextStyle(color: Colors.red))),
-              data: (snapshots) => ListView(
+              data: (state) {
+                final snapshots = state.snapshots;
+                return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   // ── Current summary ───────────────────────────────────────
@@ -114,7 +127,8 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
                     }),
                   ],
                 ],
-              ),
+              );
+              },
             ),
           ),
         ],
@@ -357,6 +371,61 @@ class _ChartCard extends StatelessWidget {
                             sideTitles: SideTitles(showTitles: false)),
                         topTitles: const AxisTitles(
                             sideTitles: SideTitles(showTitles: false)),
+                      ),
+                      lineTouchData: LineTouchData(
+                        handleBuiltInTouches: true,
+                        getTouchedSpotIndicator: (barData, spotIndexes) =>
+                            spotIndexes.map((i) => TouchedSpotIndicatorData(
+                                  FlLine(
+                                    color: primaryColor.withOpacity(0.25),
+                                    strokeWidth: 1,
+                                    dashArray: [4, 4],
+                                  ),
+                                  FlDotData(
+                                    getDotPainter: (_, __, ___, ____) =>
+                                        FlDotCirclePainter(
+                                      radius: 5,
+                                      color: primaryColor,
+                                      strokeWidth: 2,
+                                      strokeColor: Colors.white,
+                                    ),
+                                  ),
+                                )).toList(),
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (_) =>
+                              const Color(0xFF2D3142).withOpacity(0.88),
+                          tooltipRoundedRadius: 8,
+                          tooltipPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          fitInsideHorizontally: true,
+                          fitInsideVertically: true,
+                          getTooltipItems: (touchedSpots) =>
+                              touchedSpots.map((s) {
+                            final idx = s.spotIndex;
+                            if (idx < 0 || idx >= ordered.length) return null;
+                            final dt = ordered[idx].recordedAt;
+                            const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                                'Jul','Aug','Sep','Oct','Nov','Dec'];
+                            final date = '${months[dt.month - 1]} ${dt.day}';
+                            final suffix = metric == _ChartMetric.bmi ? '' : ' kg';
+                            return LineTooltipItem(
+                              '$date\n',
+                              const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w400),
+                              children: [
+                                TextSpan(
+                                  text: '${s.y.toStringAsFixed(1)}$suffix',
+                                  style: const TextStyle(
+                                      color: primaryColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
                       lineBarsData: [
                         LineChartBarData(

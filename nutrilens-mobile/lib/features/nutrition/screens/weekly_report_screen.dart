@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/weekly_report_model.dart';
 import '../providers/food_intake_provider.dart';
 
@@ -68,6 +69,14 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
             style: TextStyle(
                 color: Color(0xFF2D3142), fontWeight: FontWeight.w700)),
         iconTheme: const IconThemeData(color: Color(0xFF2D3142)),
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push('/monthly-report'),
+            icon: const Icon(Icons.calendar_month, size: 16, color: Color(0xFFEC6F2D)),
+            label: const Text('Monthly',
+                style: TextStyle(color: Color(0xFFEC6F2D), fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
       body: Column(
         children: [

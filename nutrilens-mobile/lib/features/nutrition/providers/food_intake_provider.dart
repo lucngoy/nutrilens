@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/food_intake_model.dart';
 import '../models/weekly_report_model.dart';
+import '../models/monthly_report_model.dart';
 import '../services/food_intake_service.dart';
 
 final foodIntakeServiceProvider = Provider<FoodIntakeService>((ref) => FoodIntakeService());
@@ -75,6 +76,24 @@ class WeeklyReportNotifier extends StateNotifier<AsyncValue<WeeklyReport?>> {
   Future<void> fetch({String? week}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _service.getWeeklyReport(week: week));
+  }
+
+  void reset() => state = const AsyncValue.data(null);
+}
+
+// Monthly report
+final monthlyReportProvider = StateNotifierProvider<MonthlyReportNotifier, AsyncValue<MonthlyReport?>>((ref) {
+  return MonthlyReportNotifier(ref.read(foodIntakeServiceProvider));
+});
+
+class MonthlyReportNotifier extends StateNotifier<AsyncValue<MonthlyReport?>> {
+  final FoodIntakeService _service;
+
+  MonthlyReportNotifier(this._service) : super(const AsyncValue.data(null));
+
+  Future<void> fetch({String? month}) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _service.getMonthlyReport(month: month));
   }
 
   void reset() => state = const AsyncValue.data(null);

@@ -32,12 +32,16 @@ class HealthService {
 
   // ── Health Snapshots (NL-28 / NL-31) ─────────────────────────────────────
 
-  Future<List<HealthSnapshot>> getSnapshots() async {
+  Future<({List<HealthSnapshot> snapshots, double? targetWeight})> getSnapshots({int? limit}) async {
     try {
-      final response = await _dio.get('/users/health/snapshots/');
-      return (response.data as List)
+      final params = limit != null ? {'limit': limit} : <String, dynamic>{};
+      final response = await _dio.get('/users/health/snapshots/', queryParameters: params);
+      final data = response.data as Map<String, dynamic>;
+      final snapshots = (data['snapshots'] as List)
           .map((e) => HealthSnapshot.fromJson(e))
           .toList();
+      final targetWeight = (data['target_weight'] as num?)?.toDouble();
+      return (snapshots: snapshots, targetWeight: targetWeight);
     } on DioException catch (e) {
       throw _handleError(e);
     }

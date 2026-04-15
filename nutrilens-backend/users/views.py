@@ -71,7 +71,27 @@ class HealthSnapshotListView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return HealthSnapshot.objects.filter(user=self.request.user)
+        qs = HealthSnapshot.objects.filter(user=self.request.user)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                qs = qs[:int(limit)]
+            except (ValueError, TypeError):
+                pass
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        # Inject target_weight derived from healthy BMI (22.5) and profile height
+        profile = getattr(request.user, 'profile', None)
+        target_weight = None
+        if profile and profile.height:
+            target_weight = round(22.5 * (profile.height / 100) ** 2, 1)
+        response.data = {
+            'snapshots': response.data,
+            'target_weight': target_weight,
+        }
+        return response
 
     def perform_create(self, serializer):
         # Auto-fill bmi and calorie target from current profile if not provided
@@ -499,6 +519,213 @@ class FoodIntakeDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         intake.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FoodIntakeMonthlyView(APIView):
+    """GET monthly report — NL-50. ?month=2026-04 (default: current month)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from datetime import timedelta, date as date_type
+        import calendar
+
+        month_str = request.query_params.get('month')
+        try:
+            if month_str:
+                from datetime import datetime
+                parsed = datetime.strptime(month_str, '%Y-%m')
+                year, month = parsed.year, parsed.month
+            else:
+                today = timezone.now().date()
+                year, month = today.year, today.month
+        except ValueError:
+            return Response(
+                {'error': 'Invalid month format. Use YYYY-MM (e.g. 2026-04).'},
+                status=400,
+            )
+
+        month_start = date_type(year, month, 1)
+        last_day = calendar.monthrange(year, month)[1]
+        month_end = date_type(year, month, last_day)
+
+        profile = getattr(request.user, 'profile', None)
+        calorie_target = profile.daily_calorie_target if profile else None
+        protein_target = profile.protein_target if profile else None
+        carbs_target = profile.carbs_target if profile else None
+        fat_target = profile.fat_target if profile else None
+
+        intakes = FoodIntake.objects.filter(
+            user=request.user,
+            date__range=[month_start, month_end],
+        )
+
+        from collections import defaultdict
+        by_date = defaultdict(list)
+        for i in intakes:
+            by_date[i.date].append(i)
+
+        def _day_status(total_cal, cal_target, has_data):
+            if not has_data:
+                return 'no_data'
+            if cal_target and cal_target > 0:
+                pct = total_cal / cal_target * 100
+                if pct > 110:
+                    return 'exceeded'
+                if total_cal > 0 and cal_target - total_cal <= 200:
+                    return 'warning'
+            return 'on_track'
+
+        # Build ISO weeks covering the month
+        # Find the Monday of the week containing month_start
+        first_monday = month_start - timedelta(days=month_start.weekday())
+
+        weeks = []
+        cursor = first_monday
+        while cursor <= month_end:
+            week_start = cursor
+            week_end_w = cursor + timedelta(days=6)
+            # Clamp to month boundaries for display
+            display_start = max(week_start, month_start)
+            display_end = min(week_end_w, month_end)
+
+            week_intakes = []
+            for offset in range(7):
+                d = week_start + timedelta(days=offset)
+                week_intakes.extend(by_date.get(d, []))
+
+            days_with_data = [
+                week_start + timedelta(days=o)
+                for o in range(7)
+                if by_date.get(week_start + timedelta(days=o))
+            ]
+            has_data = len(days_with_data) > 0
+
+            total_cal = round(sum(i.calories for i in week_intakes), 1)
+            total_protein = round(sum(i.protein or 0 for i in week_intakes), 1)
+            total_carbs = round(sum(i.carbs or 0 for i in week_intakes), 1)
+            total_fat = round(sum(i.fat or 0 for i in week_intakes), 1)
+
+            days_in_week = min(7, (display_end - display_start).days + 1)
+            avg_cal = round(total_cal / days_in_week, 1) if days_in_week > 0 else 0.0
+            week_target = round(calorie_target * days_in_week, 1) if calorie_target else None
+            adherence = round(total_cal / week_target * 100, 1) if (week_target and week_target > 0) else None
+
+            # week status based on avg vs daily target
+            status = _day_status(avg_cal, calorie_target, has_data)
+
+            # Human-readable label: "Apr 1–7" (strictly within the month)
+            _month_abbr = ['Jan','Feb','Mar','Apr','May','Jun',
+                           'Jul','Aug','Sep','Oct','Nov','Dec']
+            week_label = (
+                f'{_month_abbr[display_start.month - 1]} {display_start.day}'
+                f'–{display_end.day}'
+            )
+
+            weeks.append({
+                'week': week_label,
+                'week_start': str(display_start),
+                'week_end': str(display_end),
+                'has_data': has_data,
+                'total_calories': total_cal,
+                'total_protein': total_protein,
+                'total_carbs': total_carbs,
+                'total_fat': total_fat,
+                'avg_calories_per_day': avg_cal,
+                'calorie_target_week': week_target,
+                'calorie_target_daily': calorie_target,
+                'adherence_pct': adherence,
+                'status': status,
+                'days_logged': len(days_with_data),
+                'days_in_week': days_in_week,
+            })
+            cursor += timedelta(days=7)
+
+        # Monthly aggregates
+        all_day_cals = []
+        for d_date, d_intakes in by_date.items():
+            if month_start <= d_date <= month_end:
+                all_day_cals.append(sum(i.calories for i in d_intakes))
+
+        avg_calories = round(sum(all_day_cals) / len(all_day_cals), 1) if all_day_cals else 0.0
+        total_calories_month = round(sum(all_day_cals), 1)
+        days_logged = len(all_day_cals)
+        days_on_track = sum(
+            1 for d_date, d_intakes in by_date.items()
+            if month_start <= d_date <= month_end and
+            _day_status(sum(i.calories for i in d_intakes), calorie_target, True) == 'on_track'
+        )
+        days_exceeded = sum(
+            1 for d_date, d_intakes in by_date.items()
+            if month_start <= d_date <= month_end and
+            _day_status(sum(i.calories for i in d_intakes), calorie_target, True) == 'exceeded'
+        )
+
+        # best/worst day (distance to target)
+        best_day = worst_day = None
+        if all_day_cals and calorie_target:
+            day_cal_list = [
+                (str(d_date), sum(i.calories for i in d_intakes))
+                for d_date, d_intakes in by_date.items()
+                if month_start <= d_date <= month_end
+            ]
+            sorted_dist = sorted(day_cal_list, key=lambda x: abs(x[1] - calorie_target))
+            best_day = sorted_dist[0][0]
+            worst_day = sorted_dist[-1][0]
+
+        # Trend vs previous month
+        prev_month = month - 1 if month > 1 else 12
+        prev_year = year if month > 1 else year - 1
+        prev_last_day = calendar.monthrange(prev_year, prev_month)[1]
+        prev_start = date_type(prev_year, prev_month, 1)
+        prev_end = date_type(prev_year, prev_month, prev_last_day)
+
+        prev_intakes = FoodIntake.objects.filter(
+            user=request.user, date__range=[prev_start, prev_end]
+        )
+        prev_by_date = defaultdict(list)
+        for i in prev_intakes:
+            prev_by_date[i.date].append(i)
+        prev_day_cals = [sum(i.calories for i in v) for v in prev_by_date.values() if v]
+        prev_avg = round(sum(prev_day_cals) / len(prev_day_cals), 1) if prev_day_cals else None
+
+        if prev_avg and avg_calories:
+            diff = avg_calories - prev_avg
+            trend = 'stable' if abs(diff) < 50 else ('up' if diff > 0 else 'down')
+        else:
+            trend = 'stable'
+
+        trend_labels = {
+            'up': 'More calories than last month',
+            'down': 'Fewer calories than last month',
+            'stable': 'Similar intake to last month',
+        }
+
+        import calendar as cal_module
+        month_name = cal_module.month_name[month]
+
+        return Response({
+            'month': month_str or f'{year}-{str(month).zfill(2)}',
+            'month_name': f'{month_name} {year}',
+            'month_start': str(month_start),
+            'month_end': str(month_end),
+            'weeks': weeks,
+            'summary': {
+                'avg_calories': avg_calories,
+                'total_calories': total_calories_month,
+                'calorie_target': calorie_target,
+                'protein_target': protein_target,
+                'carbs_target': carbs_target,
+                'fat_target': fat_target,
+                'days_logged': days_logged,
+                'days_in_month': last_day,
+                'days_on_track': days_on_track,
+                'days_exceeded': days_exceeded,
+                'best_day': best_day,
+                'worst_day': worst_day,
+                'trend': trend,
+                'trend_label': trend_labels[trend],
+            },
+        })
 
 
 class FoodIntakeWeeklyView(APIView):

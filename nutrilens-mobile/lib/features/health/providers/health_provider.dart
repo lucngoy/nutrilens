@@ -45,24 +45,33 @@ class HealthProfileNotifier
 
 // ── Health Snapshots Provider ─────────────────────────────────────────────
 
+class HealthSnapshotsState {
+  final List<HealthSnapshot> snapshots;
+  final double? targetWeight;
+  const HealthSnapshotsState({required this.snapshots, this.targetWeight});
+}
+
 final healthSnapshotsProvider =
     StateNotifierProvider<HealthSnapshotsNotifier,
-        AsyncValue<List<HealthSnapshot>>>(
+        AsyncValue<HealthSnapshotsState>>(
   (ref) => HealthSnapshotsNotifier(ref.read(healthServiceProvider)),
 );
 
 class HealthSnapshotsNotifier
-    extends StateNotifier<AsyncValue<List<HealthSnapshot>>> {
+    extends StateNotifier<AsyncValue<HealthSnapshotsState>> {
   final HealthService _service;
 
   HealthSnapshotsNotifier(this._service)
-      : super(const AsyncValue.data([]));
+      : super(const AsyncValue.data(HealthSnapshotsState(snapshots: [])));
 
-  Future<void> fetchSnapshots() async {
+  Future<void> fetchSnapshots({int limit = 90}) async {
     state = const AsyncValue.loading();
     try {
-      final snapshots = await _service.getSnapshots();
-      state = AsyncValue.data(snapshots);
+      final result = await _service.getSnapshots(limit: limit);
+      state = AsyncValue.data(HealthSnapshotsState(
+        snapshots: result.snapshots,
+        targetWeight: result.targetWeight,
+      ));
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
     }
@@ -81,8 +90,11 @@ class HealthSnapshotsNotifier
         dailyCalorieTarget: dailyCalorieTarget,
         notes: notes,
       );
-      final current = state.valueOrNull ?? [];
-      state = AsyncValue.data([snapshot, ...current]);
+      final current = state.valueOrNull;
+      state = AsyncValue.data(HealthSnapshotsState(
+        snapshots: [snapshot, ...(current?.snapshots ?? [])],
+        targetWeight: current?.targetWeight,
+      ));
     } catch (e) {
       rethrow;
     }
