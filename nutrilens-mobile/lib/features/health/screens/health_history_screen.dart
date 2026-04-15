@@ -88,46 +88,41 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
               data: (state) {
                 final snapshots = state.snapshots;
                 return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // ── Current summary ───────────────────────────────────────
-                  _SummaryCard(
-                    weight: healthProfile?.weight,
-                    bmi: healthProfile?.bmi,
-                    calorieTarget: healthProfile?.dailyCalorieTarget,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Chart ─────────────────────────────────────────────────
-                  if (snapshots.length >= 2) ...[
-                    _ChartCard(
-                      snapshots: snapshots,
-                      metric: _metric,
-                      onMetricChanged: (m) => setState(() => _metric = m),
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _SummaryCard(
+                      weight: healthProfile?.weight,
+                      bmi: healthProfile?.bmi,
+                      calorieTarget: healthProfile?.dailyCalorieTarget,
                     ),
                     const SizedBox(height: 16),
+                    if (snapshots.length >= 2) ...[
+                      _ChartCard(
+                        snapshots: snapshots,
+                        metric: _metric,
+                        onMetricChanged: (m) => setState(() => _metric = m),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (snapshots.isEmpty)
+                      _buildEmpty()
+                    else ...[
+                      const Text('SNAPSHOTS',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                              letterSpacing: 0.08)),
+                      const SizedBox(height: 12),
+                      ...List.generate(snapshots.length, (i) {
+                        final prev =
+                            i < snapshots.length - 1 ? snapshots[i + 1] : null;
+                        return _SnapshotCard(
+                            snapshot: snapshots[i], previous: prev);
+                      }),
+                    ],
                   ],
-
-                  // ── History list ──────────────────────────────────────────
-                  if (snapshots.isEmpty)
-                    _buildEmpty()
-                  else ...[
-                    const Text('SNAPSHOTS',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey,
-                            letterSpacing: 0.08)),
-                    const SizedBox(height: 12),
-                    ...List.generate(snapshots.length, (i) {
-                      final prev =
-                          i < snapshots.length - 1 ? snapshots[i + 1] : null;
-                      return _SnapshotCard(
-                          snapshot: snapshots[i], previous: prev);
-                    }),
-                  ],
-                ],
-              );
+                );
               },
             ),
           ),
@@ -642,3 +637,4 @@ class _StatChip extends StatelessWidget {
     );
   }
 }
+

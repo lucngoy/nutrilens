@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/health_snapshot_model.dart';
 import '../providers/health_provider.dart';
 
@@ -35,25 +36,57 @@ class _HealthProgressScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Health Progress',
-            style: TextStyle(
-                color: Color(0xFF2D3142), fontWeight: FontWeight.w700)),
-        iconTheme: const IconThemeData(color: Color(0xFF2D3142)),
-        bottom: TabBar(
-          controller: _tab,
-          labelColor: const Color(0xFFEC6F2D),
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: const Color(0xFFEC6F2D),
-          tabs: const [
-            Tab(text: 'Charts'),
-            Tab(text: 'Baseline vs Now'),
-          ],
-        ),
-      ),
-      body: ref.watch(healthSnapshotsProvider).when(
+      body: Column(
+        children: [
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.fromLTRB(
+                24, MediaQuery.of(context).padding.top + 16, 24, 0),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/health-history'),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEC6F2D).withOpacity(0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.chevron_left,
+                            color: Color(0xFFEC6F2D), size: 24),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Health Progress',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A))),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TabBar(
+                  controller: _tab,
+                  labelColor: const Color(0xFFEC6F2D),
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: const Color(0xFFEC6F2D),
+                  tabs: const [
+                    Tab(text: 'Charts'),
+                    Tab(text: 'Baseline vs Now'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ref.watch(healthSnapshotsProvider).when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: Color(0xFFEC6F2D))),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -75,6 +108,9 @@ class _HealthProgressScreenState
             ],
           );
         },
+      ),
+          ),
+        ],
       ),
     );
   }

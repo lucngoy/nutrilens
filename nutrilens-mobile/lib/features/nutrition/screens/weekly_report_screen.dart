@@ -62,24 +62,49 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
     final state = ref.watch(weeklyReportProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Weekly Report',
-            style: TextStyle(
-                color: Color(0xFF2D3142), fontWeight: FontWeight.w700)),
-        iconTheme: const IconThemeData(color: Color(0xFF2D3142)),
-        actions: [
-          TextButton.icon(
-            onPressed: () => context.push('/monthly-report'),
-            icon: const Icon(Icons.calendar_month, size: 16, color: Color(0xFFEC6F2D)),
-            label: const Text('Monthly',
-                style: TextStyle(color: Color(0xFFEC6F2D), fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
       body: Column(
         children: [
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.fromLTRB(
+                24, MediaQuery.of(context).padding.top + 16, 24, 16),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/food-intake'),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.chevron_left,
+                        color: _primary, size: 24),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Weekly Report',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A))),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.push('/monthly-report'),
+                  icon: const Icon(Icons.calendar_month, size: 16, color: _primary),
+                  label: const Text('Monthly',
+                      style: TextStyle(
+                          color: _primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
           _WeekBar(
             weekKey: _weekKey,
             isCurrentWeek: _isCurrentWeek,
@@ -338,7 +363,16 @@ class _BarChartCardState extends State<_BarChartCard> {
                   },
                 ),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (val, _) => Text(
+                        val.toInt().toString(),
+                        style: const TextStyle(fontSize: 9, color: Colors.grey),
+                      ),
+                    ),
+                  ),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
@@ -432,6 +466,7 @@ class _Tooltip extends StatelessWidget {
     final dayLabel = _dayLabels[day.weekday];
     final statusLabel = _statusLabels[day.status] ?? day.status;
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
@@ -439,19 +474,21 @@ class _Tooltip extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Text(dayLabel,
               style: TextStyle(
                   color: color, fontSize: 13, fontWeight: FontWeight.w700)),
           const SizedBox(width: 8),
-          Text(
-            day.hasData
-                ? '${day.totalCalories.toInt()} kcal'
-                    '${day.calorieTarget != null ? ' / ${day.calorieTarget!.toInt()}' : ''}'
-                    '${day.adherencePct != null ? '  ·  ${day.adherencePct!.toInt()}%' : ''}'
-                : 'No data logged',
-            style: TextStyle(color: color, fontSize: 12),
+          Expanded(
+            child: Text(
+              day.hasData
+                  ? '${day.totalCalories.toInt()} kcal'
+                      '${day.calorieTarget != null ? ' / ${day.calorieTarget!.toInt()}' : ''}'
+                      '${day.adherencePct != null ? '  ·  ${day.adherencePct!.toInt()}%' : ''}'
+                  : 'No data logged',
+              style: TextStyle(color: color, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const SizedBox(width: 8),
           Container(
@@ -530,7 +567,8 @@ class _SummaryStatsCard extends StatelessWidget {
                         label: 'Worst day',
                         date: summary.worstDay!,
                         icon: Icons.warning_amber_outlined,
-                        color: const Color(0xFFF44336)),
+                        color: const Color(0xFFF44336),
+                        alignRight: true),
                   ),
               ],
             ),
@@ -580,11 +618,13 @@ class _DayHighlight extends StatelessWidget {
   final String date;
   final IconData icon;
   final Color color;
+  final bool alignRight;
   const _DayHighlight(
       {required this.label,
       required this.date,
       required this.icon,
-      required this.color});
+      required this.color,
+      this.alignRight = false});
 
   String _formatDate(String dateStr) {
     try {
@@ -600,11 +640,14 @@ class _DayHighlight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisAlignment: alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
       children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 6),
+        if (!alignRight) ...[
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+        ],
         Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Text(label,
                 style: const TextStyle(color: Colors.grey, fontSize: 10)),
@@ -613,6 +656,10 @@ class _DayHighlight extends StatelessWidget {
                     color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           ],
         ),
+        if (alignRight) ...[
+          const SizedBox(width: 6),
+          Icon(icon, color: color, size: 16),
+        ],
       ],
     );
   }
