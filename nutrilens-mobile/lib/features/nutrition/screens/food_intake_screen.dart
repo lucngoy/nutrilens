@@ -7,6 +7,8 @@ import '../models/food_intake_model.dart';
 import '../providers/food_intake_provider.dart';
 import '../../scanner/screens/scanner_screen.dart';
 import '../../scanner/models/product_model.dart';
+import '../../inventory/providers/inventory_provider.dart';
+import '../../inventory/models/inventory_model.dart';
 
 class FoodIntakeScreen extends ConsumerStatefulWidget {
   const FoodIntakeScreen({super.key});
@@ -717,6 +719,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
   late String _unit;
   bool _saving = false;
   String? _error;
+  bool _deductInventory = true;
 
   bool get _isEdit => widget.existing != null;
 
@@ -801,7 +804,22 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
         final date = widget.selectedDate ?? now;
         final consumedAt = DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second);
         data['consumed_at'] = consumedAt.toIso8601String();
+        if (widget.prefill != null) data['source_type'] = 'scan';
         await ref.read(foodIntakeProvider.notifier).logIntake(data);
+      }
+      // Deduct from inventory if checked
+      if (_deductInventory && !_isEdit) {
+        final inventoryItems = ref.read(inventoryProvider).valueOrNull ?? [];
+        final barcode = widget.prefill?.barcode ?? '';
+        InventoryItem? match;
+        if (barcode.isNotEmpty) {
+          match = inventoryItems.where((i) => i.barcode == barcode).firstOrNull;
+        }
+        match ??= inventoryItems.where((i) =>
+          i.name.toLowerCase() == name.toLowerCase()).firstOrNull;
+        if (match != null && match.quantity > 0) {
+          await ref.read(inventoryProvider.notifier).updateQuantity(match.id, match.quantity - 1);
+        }
       }
       widget.onSaved();
       if (mounted) Navigator.pop(context);
@@ -959,6 +977,56 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
                   ),
                 ),
               ],
+
+              // Inventory deduct checkbox (only for new logs, not edits)
+              if (!_isEdit) Builder(builder: (context) {
+                final items = ref.watch(inventoryProvider).valueOrNull ?? [];
+                final barcode = widget.prefill?.barcode ?? '';
+                InventoryItem? match;
+                if (barcode.isNotEmpty) {
+                  match = items.where((i) => i.barcode == barcode).firstOrNull;
+                }
+                match ??= items.where((i) =>
+                  i.name.toLowerCase() == _nameCtrl.text.trim().toLowerCase() &&
+                  _nameCtrl.text.trim().isNotEmpty).firstOrNull;
+                if (match == null || match.quantity <= 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: InkWell(
+                    onTap: () => setState(() => _deductInventory = !_deductInventory),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _deductInventory ? _primary.withOpacity(0.06) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _deductInventory ? _primary.withOpacity(0.3) : Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _deductInventory ? Icons.check_box : Icons.check_box_outline_blank,
+                            color: _deductInventory ? _primary : Colors.grey,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Deduct from inventory (${match.name} — ${match.quantity} ${match.unit} left)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: _deductInventory ? const Color(0xFF1A1A1A) : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
 
               const SizedBox(height: 20),
               Row(

@@ -12,7 +12,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-enum _SortOption { nameAZ, nameZA, qtyAsc, qtyDesc, status }
+enum _SortOption { dateDesc, dateAsc, nameAZ, nameZA, qtyAsc, qtyDesc, status }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
@@ -27,10 +27,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     Future.microtask(
         () => ref.read(inventoryProvider.notifier).fetchInventory(type: _inventoryType));
   }
-  _SortOption _sortOption = _SortOption.nameAZ;
+  _SortOption _sortOption = _SortOption.dateDesc;
   static const _lowStockPreviewCount = 3;
 
   static const _sortLabels = {
+    _SortOption.dateDesc: 'Recently added',
+    _SortOption.dateAsc: 'Oldest first',
     _SortOption.nameAZ: 'Name (A → Z)',
     _SortOption.nameZA: 'Name (Z → A)',
     _SortOption.qtyAsc: 'Quantity (ascending)',
@@ -39,6 +41,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   };
 
   static const _sortIcons = {
+    _SortOption.dateDesc: Icons.schedule_rounded,
+    _SortOption.dateAsc: Icons.history_rounded,
     _SortOption.nameAZ: Icons.sort_by_alpha,
     _SortOption.nameZA: Icons.sort_by_alpha,
     _SortOption.qtyAsc: Icons.arrow_upward_rounded,
@@ -49,6 +53,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   List<InventoryItem> _sorted(List<InventoryItem> items) {
     final list = [...items];
     switch (_sortOption) {
+      case _SortOption.dateDesc:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case _SortOption.dateAsc:
+        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       case _SortOption.nameAZ:
         list.sort((a, b) => a.name.compareTo(b.name));
       case _SortOption.nameZA:
@@ -351,13 +359,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: _sortOption != _SortOption.nameAZ
+                                color: _sortOption != _SortOption.dateDesc
                                     ? primaryColor.withOpacity(0.12)
                                     : const Color(0xFFF0F0F0),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(Icons.sort_rounded,
-                                  color: _sortOption != _SortOption.nameAZ
+                                  color: _sortOption != _SortOption.dateDesc
                                       ? primaryColor
                                       : Colors.grey,
                                   size: 20),
@@ -799,6 +807,13 @@ class _InventoryCard extends StatelessWidget {
     }
   }
 
+  Color _expiryColor(DateTime expiry) {
+    final days = expiry.difference(DateTime.now()).inDays;
+    if (days <= 3) return const Color(0xFFE74C3C);
+    if (days <= 7) return const Color(0xFFE67E22);
+    return Colors.grey;
+  }
+
   Color _statusColor() {
     if (item.quantity == 0) return Colors.red;
     if (item.isLowStock) return Colors.orange;
@@ -894,7 +909,7 @@ class _InventoryCard extends StatelessWidget {
                                       ? Image.network(
                                           item.imageUrl!,
                                           width: 64,
-                                          height: 64,
+                                          height: 92,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) =>
                                               _buildPlaceholder(),
@@ -937,7 +952,7 @@ class _InventoryCard extends StatelessWidget {
                                 children: [
                                   Text(
                                     item.name,
-                                    maxLines: 2,
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontSize: 14,
@@ -1021,66 +1036,71 @@ class _InventoryCard extends StatelessWidget {
                                       ),
                                     ],
                                   ]),
+                                  const SizedBox(height: 8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: LinearProgressIndicator(
+                                      value: progress,
+                                      backgroundColor: const Color(0xFFEEEEEE),
+                                      valueColor: AlwaysStoppedAnimation(statusColor),
+                                      minHeight: 5,
+                                    ),
+                                  ),
+                                  if (item.expirationDate != null || item.storageLocation.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        if (item.storageLocation.isNotEmpty) ...[
+                                          const Icon(Icons.place_outlined, size: 11, color: Colors.grey),
+                                          const SizedBox(width: 2),
+                                          Flexible(
+                                            child: Text(
+                                              item.storageLocation,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                            ),
+                                          ),
+                                        ],
+                                        if (item.expirationDate != null && item.storageLocation.isNotEmpty)
+                                          const Text(' · ', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                        if (item.expirationDate != null) ...[
+                                          Icon(Icons.event_outlined, size: 11,
+                                              color: _expiryColor(item.expirationDate!)),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            'Exp. ${item.expirationDate!.day}/${item.expirationDate!.month}',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: _expiryColor(item.expirationDate!)),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
 
-                            // Delete button
-                            GestureDetector(
-                              onTap: () => _confirmDelete(context),
-                              child: Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF0F0),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(
-                                    Icons.delete_outline_rounded,
-                                    size: 16,
-                                    color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
+                            const SizedBox(width: 12),
 
-                        const SizedBox(height: 12),
-
-                        // Bottom: progress + qty pill
-                        Row(
-                          children: [
-                            // Progress bar
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: const Color(0xFFEEEEEE),
-                                  valueColor:
-                                      AlwaysStoppedAnimation(statusColor),
-                                  minHeight: 6,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(width: 14),
-
-                            // Qty pill: [−] N [+]
+                            // Qty pill: [+] N [−] vertical
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF6F6F6),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Row(
+                              child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   _PillButton(
-                                      icon: Icons.remove,
-                                      onTap: onDecrement,
+                                      icon: Icons.add,
+                                      onTap: onIncrement,
                                       color: primaryColor),
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10),
+                                        vertical: 4),
                                     child: Text(
                                       item.quantity.toString(),
                                       style: TextStyle(
@@ -1092,14 +1112,15 @@ class _InventoryCard extends StatelessWidget {
                                     ),
                                   ),
                                   _PillButton(
-                                      icon: Icons.add,
-                                      onTap: onIncrement,
+                                      icon: Icons.remove,
+                                      onTap: onDecrement,
                                       color: primaryColor),
                                 ],
                               ),
                             ),
                           ],
                         ),
+
                       ],
                     ),
                   ),
@@ -1116,7 +1137,7 @@ class _InventoryCard extends StatelessWidget {
   Widget _buildPlaceholder() {
     return Container(
       width: 64,
-      height: 64,
+      height: 92,
       decoration: BoxDecoration(
         color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(14),
