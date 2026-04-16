@@ -655,8 +655,10 @@ class _AnalysisLoadingCard extends StatelessWidget {
                 strokeWidth: 2, color: Color(0xFFEC6F2D)),
           ),
           SizedBox(width: 14),
-          Text('Analyzing against your health profile...',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
+          Flexible(
+            child: Text('Analyzing against your health profile...',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ),
         ],
       ),
     );

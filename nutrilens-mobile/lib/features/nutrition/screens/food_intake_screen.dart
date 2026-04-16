@@ -5,6 +5,8 @@ import '../../../core/widgets/app_dialogs.dart';
 import '../../../core/services/notification_service.dart';
 import '../models/food_intake_model.dart';
 import '../providers/food_intake_provider.dart';
+import '../../scanner/screens/scanner_screen.dart';
+import '../../scanner/models/product_model.dart';
 
 class FoodIntakeScreen extends ConsumerStatefulWidget {
   const FoodIntakeScreen({super.key});
@@ -58,10 +60,24 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _primary,
-        onPressed: _showLogSheet,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'scan_fab',
+            backgroundColor: Colors.white,
+            elevation: 2,
+            onPressed: _scanToLog,
+            child: const Icon(Icons.qr_code_scanner, color: _primary),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'add_fab',
+            backgroundColor: _primary,
+            onPressed: _showLogSheet,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -150,7 +166,7 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
     });
   }
 
-  void _showLogSheet() {
+  void _showLogSheet({ProductModel? prefill}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -158,8 +174,19 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
       builder: (_) => _LogIntakeSheet(
         selectedDate: _selectedDate,
         onSaved: _afterLog,
+        prefill: prefill,
       ),
     );
+  }
+
+  Future<void> _scanToLog() async {
+    final product = await Navigator.push<ProductModel>(
+      context,
+      MaterialPageRoute(builder: (_) => const ScannerScreen(logMode: true)),
+    );
+    if (product != null && mounted) {
+      _showLogSheet(prefill: product);
+    }
   }
 
   void _showEditSheet(FoodIntake intake) {
@@ -495,19 +522,17 @@ class _IntakeList extends ConsumerWidget {
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (intakes) {
         if (intakes.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.restaurant_outlined, size: 56, color: Colors.grey),
-                SizedBox(height: 12),
-                Text('No entries yet',
-                    style: TextStyle(color: Colors.grey, fontSize: 15)),
-                SizedBox(height: 4),
-                Text('Tap + to log your first meal',
-                    style: TextStyle(color: Colors.grey, fontSize: 13)),
-              ],
-            ),
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.restaurant_outlined, size: 56, color: Colors.grey),
+              SizedBox(height: 12),
+              Text('No entries yet',
+                  style: TextStyle(color: Colors.grey, fontSize: 15)),
+              SizedBox(height: 4),
+              Text('Tap + to log your first meal',
+                  style: TextStyle(color: Colors.grey, fontSize: 13)),
+            ],
           );
         }
 
@@ -668,7 +693,8 @@ class _LogIntakeSheet extends StatefulWidget {
   final VoidCallback onSaved;
   final FoodIntake? existing;
   final DateTime? selectedDate;
-  const _LogIntakeSheet({required this.onSaved, this.existing, this.selectedDate});
+  final ProductModel? prefill;
+  const _LogIntakeSheet({required this.onSaved, this.existing, this.selectedDate, this.prefill});
 
   @override
   State<_LogIntakeSheet> createState() => _LogIntakeSheetState();
@@ -684,6 +710,8 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
   final _proteinCtrl = TextEditingController();
   final _carbsCtrl = TextEditingController();
   final _fatCtrl = TextEditingController();
+  final _sugarCtrl = TextEditingController();
+  final _saltCtrl = TextEditingController();
 
   late String _mealType;
   late String _unit;
@@ -696,6 +724,7 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
   void initState() {
     super.initState();
     final e = widget.existing;
+    final p = widget.prefill;
     _mealType = e?.mealType ?? 'snack';
     _unit = e?.unit ?? 'g';
     if (e != null) {
@@ -706,6 +735,20 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
       if (e.protein != null) _proteinCtrl.text = e.protein!.toString();
       if (e.carbs != null) _carbsCtrl.text = e.carbs!.toString();
       if (e.fat != null) _fatCtrl.text = e.fat!.toString();
+      if (e.sugar != null) _sugarCtrl.text = e.sugar!.toString();
+      if (e.salt != null) _saltCtrl.text = e.salt!.toString();
+    } else if (p != null) {
+      // Pre-fill from scanned product (per 100g)
+      _nameCtrl.text = p.name;
+      _qtyCtrl.text = '100';
+      _unit = 'g';
+      final n = p.nutrition;
+      if (n.calories != null) _calCtrl.text = n.calories!.toStringAsFixed(0);
+      if (n.protein != null) _proteinCtrl.text = n.protein!.toStringAsFixed(1);
+      if (n.carbohydrates != null) _carbsCtrl.text = n.carbohydrates!.toStringAsFixed(1);
+      if (n.fat != null) _fatCtrl.text = n.fat!.toStringAsFixed(1);
+      if (n.sugar != null) _sugarCtrl.text = n.sugar!.toStringAsFixed(1);
+      if (n.salt != null) _saltCtrl.text = n.salt!.toStringAsFixed(1);
     }
   }
 
@@ -718,6 +761,8 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
     _proteinCtrl.dispose();
     _carbsCtrl.dispose();
     _fatCtrl.dispose();
+    _sugarCtrl.dispose();
+    _saltCtrl.dispose();
     super.dispose();
   }
 
@@ -745,6 +790,8 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
         if (_proteinCtrl.text.isNotEmpty) 'protein': double.tryParse(_proteinCtrl.text),
         if (_carbsCtrl.text.isNotEmpty) 'carbs': double.tryParse(_carbsCtrl.text),
         if (_fatCtrl.text.isNotEmpty) 'fat': double.tryParse(_fatCtrl.text),
+        if (_sugarCtrl.text.isNotEmpty) 'sugar': double.tryParse(_sugarCtrl.text),
+        if (_saltCtrl.text.isNotEmpty) 'salt': double.tryParse(_saltCtrl.text),
       };
 
       if (_isEdit) {
@@ -781,11 +828,33 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(_isEdit ? 'Edit Entry' : 'Log Food',
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2D3142))),
+                  Row(
+                    children: [
+                      Text(_isEdit ? 'Edit Entry' : 'Log Food',
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2D3142))),
+                      if (widget.prefill != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _primary.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.qr_code_scanner, size: 11, color: _primary),
+                              SizedBox(width: 4),
+                              Text('Scanned', style: TextStyle(fontSize: 11, color: _primary, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
@@ -860,6 +929,15 @@ class _LogIntakeSheetState extends State<_LogIntakeSheet> {
                   Expanded(child: _Field(controller: _carbsCtrl, label: 'Carbs g', hint: '0', numeric: true)),
                   const SizedBox(width: 8),
                   Expanded(child: _Field(controller: _fatCtrl, label: 'Fat g', hint: '0', numeric: true)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _Field(controller: _sugarCtrl, label: 'Sugar g', hint: '0', numeric: true)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _Field(controller: _saltCtrl, label: 'Salt g', hint: '0', numeric: true)),
+                  const Expanded(child: SizedBox()),
                 ],
               ),
 

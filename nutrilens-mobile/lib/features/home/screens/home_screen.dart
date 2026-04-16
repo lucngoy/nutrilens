@@ -6,17 +6,30 @@ import '../../../features/inventory/providers/inventory_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../../scanner/providers/scan_history_provider.dart';
 import '../../scanner/models/scan_history_model.dart';
+import '../../nutrition/providers/food_intake_provider.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(dailySummaryProvider.notifier).fetch());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).valueOrNull;
     final inventoryState = ref.watch(inventoryProvider);
     final scanHistory = ref.watch(scanHistoryProvider);
+    final summaryState = ref.watch(dailySummaryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -173,39 +186,61 @@ class HomeScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
 
                     // Today's summary
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Today's Summary",
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1A1A1A))),
-                          const SizedBox(height: 16),
-                          _SummaryRow(
-                              icon: Icons.local_fire_department,
-                              label: 'Calories',
-                              value: '1,450 / 2,000',
-                              progress: 0.72),
-                          const SizedBox(height: 12),
-                          _SummaryRow(
-                              icon: Icons.water_drop_outlined,
-                              label: 'Sugar',
-                              value: '24g / 50g',
-                              progress: 0.48),
-                          const SizedBox(height: 12),
-                          _SummaryRow(
-                              icon: Icons.fitness_center,
-                              label: 'Protein',
-                              value: '45g / 60g',
-                              progress: 0.75),
-                        ],
+                    GestureDetector(
+                      onTap: () => context.push('/food-intake'),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: summaryState.when(
+                          loading: () => _SummaryLoading(),
+                          error: (_, __) => _SummaryEmpty(),
+                          data: (summary) {
+                            if (summary == null) return _SummaryEmpty();
+                            final calTarget = summary.calorieTarget ?? 2000;
+                            final protTarget = summary.proteinTarget ?? 60;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text("Today's Summary",
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1A1A1A))),
+                                    Icon(Icons.chevron_right,
+                                        color: Colors.grey.shade400, size: 20),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _SummaryRow(
+                                    icon: Icons.local_fire_department,
+                                    label: 'Calories',
+                                    value: '${summary.totalCalories.toStringAsFixed(0)} / ${calTarget.toStringAsFixed(0)} kcal',
+                                    progress: (summary.totalCalories / calTarget).clamp(0.0, 1.0),
+                                    progressColor: _progressColor(summary.totalCalories / calTarget)),
+                                const SizedBox(height: 12),
+                                _SummaryRow(
+                                    icon: Icons.grain_outlined,
+                                    label: 'Carbs',
+                                    value: '${summary.totalCarbs.toStringAsFixed(0)}g${summary.carbsTarget != null ? ' / ${summary.carbsTarget!.toStringAsFixed(0)}g' : ''}',
+                                    progress: summary.carbsTarget != null ? (summary.totalCarbs / summary.carbsTarget!).clamp(0.0, 1.0) : 0.0,
+                                    progressColor: summary.carbsTarget != null ? _progressColor(summary.totalCarbs / summary.carbsTarget!) : const Color(0xFF27AE60)),
+                                const SizedBox(height: 12),
+                                _SummaryRow(
+                                    icon: Icons.fitness_center,
+                                    label: 'Protein',
+                                    value: '${summary.totalProtein.toStringAsFixed(1)}g / ${protTarget.toStringAsFixed(0)}g',
+                                    progress: (summary.totalProtein / protTarget).clamp(0.0, 1.0),
+                                    progressColor: _progressColor(summary.totalProtein / protTarget)),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -465,20 +500,26 @@ class _QuickCard extends StatelessWidget {
   }
 }
 
+Color _progressColor(double ratio) {
+  if (ratio >= 1.0) return const Color(0xFFE74C3C);
+  if (ratio >= 0.85) return const Color(0xFFE67E22);
+  return const Color(0xFF27AE60);
+}
+
 class _SummaryRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
   final double progress;
+  final Color progressColor;
 
   const _SummaryRow({
     required this.icon,
     required this.label,
     required this.value,
     required this.progress,
+    this.progressColor = const Color(0xFFEC6F2D),
   });
-
-  static const primaryColor = Color(0xFFEC6F2D);
 
   @override
   Widget build(BuildContext context) {
@@ -488,10 +529,10 @@ class _SummaryRow extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.08),
+            color: progressColor.withOpacity(0.10),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: primaryColor, size: 20),
+          child: Icon(icon, color: progressColor, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -503,25 +544,73 @@ class _SummaryRow extends StatelessWidget {
                       fontSize: 12, color: Colors.grey)),
               Text(value,
                   style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A))),
             ],
           ),
         ),
+        const SizedBox(width: 8),
         SizedBox(
-          width: 64,
+          width: 60,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor: const Color(0xFFEEEEEE),
-              valueColor:
-                  const AlwaysStoppedAnimation(primaryColor),
+              valueColor: AlwaysStoppedAnimation(progressColor),
               minHeight: 6,
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _SummaryLoading extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Today's Summary",
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A))),
+        const SizedBox(height: 16),
+        const Center(
+            child: CircularProgressIndicator(
+                color: Color(0xFFEC6F2D), strokeWidth: 2)),
+      ],
+    );
+  }
+}
+
+class _SummaryEmpty extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Today's Summary",
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A))),
+            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Text('No meals logged today',
+            style: TextStyle(fontSize: 13, color: Colors.grey)),
+        const SizedBox(height: 4),
+        const Text('Tap to log your first meal',
+            style: TextStyle(fontSize: 12, color: Color(0xFFEC6F2D))),
       ],
     );
   }
