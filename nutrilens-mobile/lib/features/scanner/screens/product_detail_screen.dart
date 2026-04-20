@@ -712,8 +712,8 @@ class _NutriscoreCard extends StatelessWidget {
             children: [
               const Flexible(
                 child: Text('Nutri-Score',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
                     style: TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
