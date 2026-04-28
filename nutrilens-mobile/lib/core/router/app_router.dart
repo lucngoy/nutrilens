@@ -21,6 +21,7 @@ import '../../features/nutrition/screens/food_intake_screen.dart';
 import '../../features/nutrition/screens/weekly_report_screen.dart';
 import '../../features/nutrition/screens/monthly_report_screen.dart';
 import '../../features/health/screens/health_progress_screen.dart';
+import '../../features/budget/screens/budget_screen.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
@@ -107,6 +108,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/health-progress',
           builder: (context, state) => const HealthProgressScreen()),
+      GoRoute(
+          path: '/budget',
+          builder: (context, state) => const BudgetScreen()),
     ],
   );
 });

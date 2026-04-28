@@ -44,6 +44,10 @@ class _FoodIntakeScreenState extends ConsumerState<FoodIntakeScreen> {
       ref.read(foodIntakeProvider.notifier).fetchToday(date: _dateKey),
       ref.read(dailySummaryProvider.notifier).fetch(date: _dateKey),
     ]);
+    if (_isToday) {
+      final entries = ref.read(foodIntakeProvider).valueOrNull ?? [];
+      await NotificationService.checkMissedMeals(entries);
+    }
   }
 
   void _goToDate(int offset) {

@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../scanner/providers/scan_history_provider.dart';
 import '../../scanner/models/scan_history_model.dart';
 import '../../nutrition/providers/food_intake_provider.dart';
+import '../../budget/providers/budget_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +22,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(dailySummaryProvider.notifier).fetch());
+    Future.microtask(() {
+      ref.read(dailySummaryProvider.notifier).fetch();
+      ref.read(budgetProvider.notifier).fetch();
+    });
   }
 
   @override
@@ -30,6 +34,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final inventoryState = ref.watch(inventoryProvider);
     final scanHistory = ref.watch(scanHistoryProvider);
     final summaryState = ref.watch(dailySummaryProvider);
+    final budgetState = ref.watch(budgetProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
@@ -152,9 +157,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 child: _QuickCard(
                                     icon: Icons.account_balance_wallet_outlined,
                                     label: 'Budget',
-                                    subtitle: '\$165 left',
-                                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Coming soon!'))),
+                                    subtitle: budgetState.whenOrNull(
+                                      data: (b) => b == null
+                                          ? 'Set budget'
+                                          : '\$${b.remaining.toStringAsFixed(0)} left',
+                                    ) ?? '...',
+                                    onTap: () => context.push('/budget'),
                                 ),
                             ),
                         ],

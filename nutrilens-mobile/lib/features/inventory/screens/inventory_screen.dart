@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/services/notification_service.dart';
 import '../providers/inventory_provider.dart';
 import '../models/inventory_model.dart';
 
@@ -24,8 +25,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   void initState() {
     super.initState();
     _inventoryType = ref.read(inventoryTypeProvider);
-    Future.microtask(
-        () => ref.read(inventoryProvider.notifier).fetchInventory(type: _inventoryType));
+    Future.microtask(() async {
+await ref.read(inventoryProvider.notifier).fetchInventory(type: _inventoryType);
+      final items = ref.read(inventoryProvider).valueOrNull ?? [];
+      if (items.isNotEmpty) await NotificationService.checkInventoryAlerts(items);
+    });
   }
   _SortOption _sortOption = _SortOption.dateDesc;
   static const _lowStockPreviewCount = 3;

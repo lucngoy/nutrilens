@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import '../../features/inventory/models/inventory_model.dart';
 import '../../features/nutrition/models/food_intake_model.dart';
+import '../../features/budget/models/budget_model.dart';
 
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
@@ -30,6 +31,9 @@ class NotificationService {
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentSound: true,
     );
 
     await _plugin.initialize(
@@ -123,6 +127,31 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  /// Sends a budget pace alert — throttled to once per day.
+  static Future<void> checkBudgetPace(MonthlyBudget budget) async {
+    if (budget.paceStatus == 'on_track') return;
+
+    const key = 'budget_pace_alert';
+    final lastStr = await _storage.read(key: key);
+    if (lastStr != null) {
+      final last = DateTime.tryParse(lastStr);
+      if (last != null && DateTime.now().difference(last).inHours < 24) return;
+    }
+
+    final String title, body;
+    if (budget.paceStatus == 'exceeded') {
+      title = 'NutriLens — Budget exceeded';
+      body = "You've gone over your grocery budget this month";
+    } else {
+      title = 'NutriLens — Spending too fast';
+      body =
+          "At this pace, you'll spend \$${budget.projectedSpent.toStringAsFixed(0)} — above your \$${budget.amount.toStringAsFixed(0)} budget";
+    }
+
+    await showNotification(id: 30, title: title, body: body, payload: 'budget');
+    await _storage.write(key: key, value: DateTime.now().toIso8601String());
+  }
+
   /// Sends a nutrition adherence alert — throttled to once every 3 hours.
   /// Call this after the user logs a food entry.
   static Future<void> checkIntakeAdherence(DailySummary summary) async {
@@ -166,6 +195,40 @@ class NotificationService {
       key: _kLastIntakeAlertKey,
       value: DateTime.now().toIso8601String(),
     );
+  }
+
+  /// Sends a missed-meal reminder — throttled once per meal per day.
+  /// Call this when loading today's food entries.
+  static Future<void> checkMissedMeals(List<dynamic> todayEntries) async {
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    final loggedMeals = todayEntries
+        .map((e) => (e.mealType as String).toLowerCase())
+        .toSet();
+
+    final checks = [
+      _MealCheck(meal: 'breakfast', afterHour: 10, notifId: 20, label: 'Breakfast'),
+      _MealCheck(meal: 'lunch',     afterHour: 14, notifId: 21, label: 'Lunch'),
+      _MealCheck(meal: 'dinner',    afterHour: 20, notifId: 22, label: 'Dinner'),
+    ];
+
+    for (final check in checks) {
+      if (now.hour < check.afterHour) continue;
+      if (loggedMeals.contains(check.meal)) continue;
+
+      final storageKey = 'missed_meal_${check.meal}_$today';
+      final alreadySent = await _storage.read(key: storageKey);
+      if (alreadySent != null) continue;
+
+      await showNotification(
+        id: check.notifId,
+        title: 'NutriLens — ${check.label} not logged',
+        body: "Don't forget to log your ${check.label.toLowerCase()}!",
+        payload: 'food_intake',
+      );
+      await _storage.write(key: storageKey, value: '1');
+    }
   }
 
   static Future<void> checkInventoryAlerts(
@@ -233,4 +296,12 @@ class NotificationService {
     if (expired.isNotEmpty) parts.add('${expired.length} expired');
     return parts.join(' • ');
   }
+}
+
+class _MealCheck {
+  final String meal;
+  final int afterHour;
+  final int notifId;
+  final String label;
+  const _MealCheck({required this.meal, required this.afterHour, required this.notifId, required this.label});
 }
