@@ -29,7 +29,6 @@ class NutriLensApp extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
-        fontFamily: 'SpaceMono',
       ),
       routerConfig: router,
     );

@@ -197,32 +197,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               fontSize: 15, fontWeight: FontWeight.w600)),
                 ),
               ),
-              const SizedBox(height: 24),
-              // Divider
-              Row(children: [
-                const Expanded(child: Divider(color: Color(0xFFE0E0E0))),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('or', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                ),
-                const Expanded(child: Divider(color: Color(0xFFE0E0E0))),
-              ]),
-              const SizedBox(height: 20),
-              // Google button
-              _SocialButton(
-                icon: Icons.g_mobiledata,
-                label: 'Continue with Google',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!'))),
-              ),
-              const SizedBox(height: 10),
-              // Apple button
-              _SocialButton(
-                icon: Icons.apple,
-                label: 'Continue with Apple',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!'))),
-              ),
               const SizedBox(height: 32),
               // Sign up link
               Center(

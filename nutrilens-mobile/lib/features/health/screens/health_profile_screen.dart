@@ -31,6 +31,11 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
   String _gender = '';
   String _goal = 'eat_healthy';
   String _activityLevel = 'moderate';
+  String _activityFrequency = '2_3';
+  String _activityIntensity = 'moderate';
+  String _activityDuration = '30_60';
+  List<String> _activityTypes = [];
+  String _lifestyle = 'desk';
   DateTime? _dateOfBirth;
   bool _isDiabetic = false;
   bool _hasHypertension = false;
@@ -38,6 +43,9 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
   bool _isLactoseIntolerant = false;
   bool _isVegan = false;
   bool _isVegetarian = false;
+  bool _isFlexitarian = false;
+  String _diabetesType = '';
+  String _lactoseLevel = '';
 
   bool _initialized = false;
 
@@ -50,6 +58,11 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
     _gender = profile.gender ?? '';
     _goal = profile.goal;
     _activityLevel = profile.activityLevel;
+    _activityFrequency = profile.activityFrequency.isNotEmpty ? profile.activityFrequency : '2_3';
+    _activityIntensity = profile.activityIntensity.isNotEmpty ? profile.activityIntensity : 'moderate';
+    _activityDuration = profile.activityDuration.isNotEmpty ? profile.activityDuration : '30_60';
+    _activityTypes = List.from(profile.activityTypes);
+    _lifestyle = profile.lifestyle.isNotEmpty ? profile.lifestyle : 'desk';
     _dateOfBirth = profile.dateOfBirth;
     _isDiabetic = profile.isDiabetic;
     _hasHypertension = profile.hasHypertension;
@@ -57,6 +70,9 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
     _isLactoseIntolerant = profile.isLactoseIntolerant;
     _isVegan = profile.isVegan;
     _isVegetarian = profile.isVegetarian;
+    _isFlexitarian = profile.isFlexitarian;
+    _diabetesType = profile.diabetesType;
+    _lactoseLevel = profile.lactoseIntoleranceLevel;
     _caloriesController.text = profile.dailyCalories?.toString() ?? '';
     _proteinController.text = profile.dailyProtein?.toString() ?? '';
     _carbsController.text = profile.dailyCarbs?.toString() ?? '';
@@ -92,12 +108,20 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
         height: double.tryParse(_heightController.text),
         goal: _goal,
         activityLevel: _activityLevel,
+        activityFrequency: _activityFrequency,
+        activityIntensity: _activityIntensity,
+        activityDuration: _activityDuration,
+        activityTypes: _activityTypes,
+        lifestyle: _lifestyle,
         isDiabetic: _isDiabetic,
         hasHypertension: _hasHypertension,
         isCeliac: _isCeliac,
         isLactoseIntolerant: _isLactoseIntolerant,
         isVegan: _isVegan,
         isVegetarian: _isVegetarian,
+        isFlexitarian: _isFlexitarian,
+        diabetesType: _diabetesType,
+        lactoseIntoleranceLevel: _lactoseLevel,
         allergies: _allergiesController.text.trim(),
         avatar: current.avatar,
         // null = cleared = backend reverts to auto-calculation
@@ -356,16 +380,23 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Activity Level
+                      // Activity
                       _SectionCard(
-                        title: 'Activity Level',
+                        title: 'Physical Activity',
                         icon: Icons.directions_run_outlined,
                         children: [
-                          _ActivitySelector(
-                            selected: _activityLevel,
-                            onSelect: (v) =>
-                                setState(() => _activityLevel = v),
+                          _ActivityScoreWidget(
+                            frequency: _activityFrequency,
+                            intensity: _activityIntensity,
+                            duration: _activityDuration,
+                            types: _activityTypes,
+                            lifestyle: _lifestyle,
                             primaryColor: primaryColor,
+                            onFrequencyChange: (v) => setState(() => _activityFrequency = v),
+                            onIntensityChange: (v) => setState(() => _activityIntensity = v),
+                            onDurationChange: (v) => setState(() => _activityDuration = v),
+                            onTypesChange: (v) => setState(() => _activityTypes = v),
+                            onLifestyleChange: (v) => setState(() => _lifestyle = v),
                           ),
                         ],
                       ),
@@ -379,9 +410,18 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
                           _ToggleRow(
                               label: 'Diabetic',
                               value: _isDiabetic,
-                              onChanged: (v) =>
-                                  setState(() => _isDiabetic = v),
+                              onChanged: (v) => setState(() {
+                                _isDiabetic = v;
+                                if (!v) _diabetesType = '';
+                              }),
                               primaryColor: primaryColor),
+                          if (_isDiabetic)
+                            _InlineSubPicker(
+                              options: const [('type_1', 'Type 1'), ('type_2', 'Type 2'), ('gestational', 'Gestational')],
+                              selected: _diabetesType,
+                              onSelect: (v) => setState(() => _diabetesType = v),
+                              primaryColor: primaryColor,
+                            ),
                           _ToggleRow(
                               label: 'Hypertension',
                               value: _hasHypertension,
@@ -397,9 +437,27 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
                           _ToggleRow(
                               label: 'Lactose intolerant',
                               value: _isLactoseIntolerant,
-                              onChanged: (v) =>
-                                  setState(() => _isLactoseIntolerant = v),
+                              onChanged: (v) => setState(() {
+                                _isLactoseIntolerant = v;
+                                if (!v) _lactoseLevel = '';
+                              }),
                               primaryColor: primaryColor),
+                          if (_isLactoseIntolerant)
+                            _InlineSubPicker(
+                              options: const [('mild', 'Mild — partial'), ('severe', 'Severe — zero lactose')],
+                              selected: _lactoseLevel,
+                              onSelect: (v) => setState(() => _lactoseLevel = v),
+                              primaryColor: primaryColor,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Dietary Preferences
+                      _SectionCard(
+                        title: 'Dietary Preferences',
+                        icon: Icons.restaurant_outlined,
+                        children: [
                           _ToggleRow(
                               label: 'Vegan',
                               value: _isVegan,
@@ -411,6 +469,12 @@ class _HealthProfileScreenState extends ConsumerState<HealthProfileScreen> {
                               value: _isVegetarian,
                               onChanged: (v) =>
                                   setState(() => _isVegetarian = v),
+                              primaryColor: primaryColor),
+                          _ToggleRow(
+                              label: 'Flexitarian',
+                              value: _isFlexitarian,
+                              onChanged: (v) =>
+                                  setState(() => _isFlexitarian = v),
                               primaryColor: primaryColor),
                         ],
                       ),
@@ -782,7 +846,6 @@ class _GoalGrid extends StatelessWidget {
   static const goals = [
     ('lose_weight', 'Lose Weight', Icons.trending_down_rounded),
     ('gain_muscle', 'Gain Muscle', Icons.fitness_center),
-    ('maintain', 'Maintain', Icons.balance_rounded),
     ('eat_healthy', 'Eat Healthy', Icons.eco_outlined),
   ];
 
@@ -834,66 +897,235 @@ class _GoalGrid extends StatelessWidget {
   }
 }
 
-class _ActivitySelector extends StatelessWidget {
-  final String selected;
-  final Function(String) onSelect;
+class _ActivityScoreWidget extends StatelessWidget {
+  final String frequency;
+  final String intensity;
+  final String duration;
+  final List<String> types;
+  final String lifestyle;
   final Color primaryColor;
+  final void Function(String) onFrequencyChange;
+  final void Function(String) onIntensityChange;
+  final void Function(String) onDurationChange;
+  final void Function(List<String>) onTypesChange;
+  final void Function(String) onLifestyleChange;
 
-  const _ActivitySelector({
-    required this.selected,
-    required this.onSelect,
+  const _ActivityScoreWidget({
+    required this.frequency,
+    required this.intensity,
+    required this.duration,
+    required this.types,
+    required this.lifestyle,
     required this.primaryColor,
+    required this.onFrequencyChange,
+    required this.onIntensityChange,
+    required this.onDurationChange,
+    required this.onTypesChange,
+    required this.onLifestyleChange,
   });
 
-  static const activities = [
-    ('sedentary', 'Sedentary', '🪑'),
-    ('light', 'Light', '🚶'),
-    ('moderate', 'Moderate', '🚴'),
-    ('active', 'Active', '🏃'),
-    ('very_active', 'Very Active', '⚡'),
+  static const _frequencies = [('0_1','0–1d'), ('2_3','2–3d'), ('4_5','4–5d'), ('6_7','6–7d')];
+  static const _intensities = [
+    ('low',      '🚶', 'Low',      'Walking, light yoga — easy conversation'),
+    ('moderate', '🚴', 'Moderate', 'Jogging, cycling — slightly breathless'),
+    ('high',     '🏃', 'High',     'HIIT, weight training — hard to talk'),
+    ('extreme',  '⚡', 'Extreme',  'Competitive training — maximum effort'),
+  ];
+  static const _durations   = [('under_30','<30m'), ('30_60','30–60m'), ('60_90','60–90m'), ('over_90','90m+')];
+  static const _types = [
+    ('running','🏃','Running'), ('cycling','🚴','Cycling'), ('swimming','🏊','Swimming'),
+    ('gym','🏋️','Gym'),       ('hiit','⚡','HIIT'),      ('football','⚽','Football'),
+    ('yoga','🧘','Yoga'),      ('walking','🚶','Walking'),
   ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: activities.map((a) {
-        final isSelected = selected == a.$1;
-        return GestureDetector(
-          onTap: () => onSelect(a.$1),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? primaryColor.withOpacity(0.08)
-                  : const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: isSelected
-                      ? primaryColor.withOpacity(0.4)
-                      : Colors.transparent),
+  static const _lifestyles = [
+    ('desk',     '🪑', 'Desk job',     'Mostly sitting — office, remote, studies'),
+    ('mixed',    '🚶', 'Mixed',        'On feet part of the day — retail, teacher'),
+    ('physical', '🔧', 'Physical job', 'Active all day — nurse, waiter, construction'),
+  ];
+
+  Widget _row(List<(String, String)> opts, String sel, void Function(String) onSel) {
+    return Row(
+      children: opts.map((o) {
+        final on = sel == o.$1;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onSel(o.$1),
+            child: Container(
+              margin: const EdgeInsets.only(right: 5),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: on ? primaryColor.withOpacity(0.1) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: on ? primaryColor : Colors.transparent, width: 1.5),
+              ),
+              child: Text(o.$2,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                    color: on ? primaryColor : const Color(0xFF666666)),
+              ),
             ),
-            child: Row(children: [
-              Text(a.$3, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 12),
-              Text(a.$2,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? primaryColor
-                          : const Color(0xFF555555))),
-              const Spacer(),
-              if (isSelected)
-                Icon(Icons.check_circle_rounded,
-                    color: primaryColor, size: 18),
-            ]),
           ),
         );
       }).toList(),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SubLabel('Days / week'),
+        const SizedBox(height: 6),
+        _row(_frequencies, frequency, onFrequencyChange),
+        const SizedBox(height: 12),
+
+        _SubLabel('Intensity'),
+        const SizedBox(height: 6),
+        ..._intensities.map((item) {
+          final on = intensity == item.$1;
+          return GestureDetector(
+            onTap: () => onIntensityChange(item.$1),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: on ? primaryColor.withOpacity(0.08) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: on ? primaryColor : Colors.transparent, width: 1.5),
+              ),
+              child: Row(children: [
+                Text(item.$2, style: const TextStyle(fontSize: 16)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.$3, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: on ? primaryColor : const Color(0xFF1A1A1A))),
+                    Text(item.$4, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+                  ],
+                )),
+                if (on) Icon(Icons.check_circle_rounded, color: primaryColor, size: 16),
+              ]),
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+
+        _SubLabel('Session duration'),
+        const SizedBox(height: 6),
+        _row(_durations, duration, onDurationChange),
+        const SizedBox(height: 12),
+
+        _SubLabel('Daily lifestyle (outside of exercise)'),
+        const SizedBox(height: 6),
+        ..._lifestyles.map((item) {
+          final on = lifestyle == item.$1;
+          return GestureDetector(
+            onTap: () => onLifestyleChange(item.$1),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: on ? primaryColor.withOpacity(0.08) : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: on ? primaryColor : Colors.transparent, width: 1.5),
+              ),
+              child: Row(children: [
+                Text(item.$2, style: const TextStyle(fontSize: 16)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.$3, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: on ? primaryColor : const Color(0xFF1A1A1A))),
+                    Text(item.$4, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+                  ],
+                )),
+                if (on) Icon(Icons.check_circle_rounded, color: primaryColor, size: 16),
+              ]),
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+
+        _SubLabel('Type of activity'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: _types.map((t) {
+            final on = types.contains(t.$1);
+            return GestureDetector(
+              onTap: () {
+                final updated = List<String>.from(types);
+                on ? updated.remove(t.$1) : updated.add(t.$1);
+                onTypesChange(updated);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: on ? primaryColor.withOpacity(0.1) : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: on ? primaryColor : Colors.transparent, width: 1.5),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(t.$2, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 5),
+                  Text(t.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                      color: on ? primaryColor : const Color(0xFF555555))),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineSubPicker extends StatelessWidget {
+  final List<(String, String)> options;
+  final String selected;
+  final void Function(String) onSelect;
+  final Color primaryColor;
+  const _InlineSubPicker({required this.options, required this.selected, required this.onSelect, required this.primaryColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, bottom: 8, top: 2),
+      child: Wrap(
+        spacing: 8,
+        children: options.map((o) {
+          final on = selected == o.$1;
+          return GestureDetector(
+            onTap: () => onSelect(o.$1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: on ? primaryColor.withOpacity(0.1) : const Color(0xFFF0F0F0),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: on ? primaryColor : Colors.transparent, width: 1.5),
+              ),
+              child: Text(o.$2,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                      color: on ? primaryColor : const Color(0xFF666666))),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _SubLabel extends StatelessWidget {
+  final String text;
+  const _SubLabel(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black45));
 }
 
 class _ToggleRow extends StatelessWidget {

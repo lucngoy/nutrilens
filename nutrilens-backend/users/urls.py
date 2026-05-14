@@ -6,6 +6,7 @@ from .views import (
     MedicalDocumentUploadView, MedicalDocumentDetailView,
     ProductAnalysisView, FoodIntakeListView, FoodIntakeDetailView,
     FoodIntakeSummaryView, FoodIntakeWeeklyView, FoodIntakeMonthlyView,
+    NutriBotView, MedicalConsentView,
 )
 
 urlpatterns = [
@@ -33,4 +34,10 @@ urlpatterns = [
     path('food-intake/summary/', FoodIntakeSummaryView.as_view(), name='food_intake_summary'),
     path('food-intake/weekly/', FoodIntakeWeeklyView.as_view(), name='food_intake_weekly'),
     path('food-intake/monthly/', FoodIntakeMonthlyView.as_view(), name='food_intake_monthly'),
+
+    # Medical disclaimer consent
+    path('medical-consent/', MedicalConsentView.as_view(), name='medical_consent'),
+
+    # NutriBot — Groq / Llama 3
+    path('nutribot/', NutriBotView.as_view(), name='nutribot'),
 ]

@@ -185,8 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 icon: Icons.smart_toy_outlined,
                                 label: 'AI Coach',
                                 subtitle: 'Get advice',
-                                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Coming in Sprint 3!'))),
+                                onTap: () => context.push('/nutribot'),
                             ),
                             ),
                         ],
@@ -368,7 +367,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: Colors.white, size: 24),
                     ),
                   ),
-                  _NavItem(icon: Icons.chat_bubble_outline, label: 'Chat'),
+                  _NavItem(icon: Icons.chat_bubble_outline, label: 'Chat',
+                      onTap: () => context.push('/nutribot')),
                   _NavItem(
                       icon: Icons.person_outline,
                       label: 'Profile',

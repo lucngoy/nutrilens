@@ -243,6 +243,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 (healthProfile.isDiabetic ||
                     healthProfile.hasHypertension ||
                     healthProfile.isCeliac ||
+                    healthProfile.isLactoseIntolerant ||
+                    healthProfile.isVegan ||
+                    healthProfile.isVegetarian ||
+                    healthProfile.isFlexitarian ||
                     healthProfile.allergies.isNotEmpty))
               Container(
                 width: double.infinity,
@@ -268,6 +272,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           _ConditionBadge(label: 'Hypertension'),
                         if (healthProfile.isCeliac)
                           _ConditionBadge(label: 'Celiac'),
+                        if (healthProfile.isLactoseIntolerant)
+                          _ConditionBadge(label: 'Lactose intolerant'),
+                        if (healthProfile.isVegan)
+                          _ConditionBadge(label: 'Vegan'),
+                        if (healthProfile.isVegetarian)
+                          _ConditionBadge(label: 'Vegetarian'),
+                        if (healthProfile.isFlexitarian)
+                          _ConditionBadge(label: 'Flexitarian'),
                         if (healthProfile.allergies.isNotEmpty)
                           ...healthProfile.allergies
                               .split(',')
@@ -283,6 +295,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 (healthProfile.isDiabetic ||
                     healthProfile.hasHypertension ||
                     healthProfile.isCeliac ||
+                    healthProfile.isLactoseIntolerant ||
+                    healthProfile.isVegan ||
+                    healthProfile.isVegetarian ||
+                    healthProfile.isFlexitarian ||
                     healthProfile.allergies.isNotEmpty))
               const SizedBox(height: 12),
 
@@ -692,7 +708,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     switch (goal) {
       case 'lose_weight': return Icons.trending_down;
       case 'gain_muscle': return Icons.fitness_center;
-      case 'maintain': return Icons.balance;
       case 'eat_healthy': return Icons.eco_outlined;
       default: return Icons.flag_outlined;
     }
@@ -702,7 +717,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     switch (goal) {
       case 'lose_weight': return 'Lose Weight';
       case 'gain_muscle': return 'Gain Muscle';
-      case 'maintain': return 'Maintain';
       case 'eat_healthy': return 'Eat Healthy';
       default: return goal;
     }

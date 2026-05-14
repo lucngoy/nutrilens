@@ -38,7 +38,7 @@ class NotificationService {
 
     await _plugin.initialize(
       const InitializationSettings(
-          android: androidSettings, iOS: iosSettings),
+          android: androidSettings, iOS: iosSettings, macOS: iosSettings),
       onDidReceiveNotificationResponse: (details) {
         onNotificationTap?.call(details.payload);
       },

@@ -7,7 +7,6 @@ class UserProfile(models.Model):
     GOAL_CHOICES = [
         ('lose_weight', 'Lose Weight'),
         ('gain_muscle', 'Gain Muscle'),
-        ('maintain', 'Maintain'),
         ('eat_healthy', 'Eat Healthy'),
     ]
 
@@ -18,6 +17,51 @@ class UserProfile(models.Model):
         ('active', 'Active'),
         ('very_active', 'Very Active'),
     ]
+
+    FREQUENCY_CHOICES = [
+        ('0_1', '0–1 days/week'),
+        ('2_3', '2–3 days/week'),
+        ('4_5', '4–5 days/week'),
+        ('6_7', '6–7 days/week'),
+    ]
+
+    INTENSITY_CHOICES = [
+        ('low', 'Low'),
+        ('moderate', 'Moderate'),
+        ('high', 'High'),
+        ('extreme', 'Extreme'),
+    ]
+
+    DURATION_CHOICES = [
+        ('under_30', '< 30 min'),
+        ('30_60', '30–60 min'),
+        ('60_90', '60–90 min'),
+        ('over_90', '90+ min'),
+    ]
+
+    LIFESTYLE_CHOICES = [
+        ('desk',     'Desk job'),
+        ('mixed',    'Mixed'),
+        ('physical', 'Physical job'),
+    ]
+
+    _LIFESTYLE_BONUS = {
+        'desk':     0.0,
+        'mixed':    0.1,
+        'physical': 0.2,
+    }
+
+    _TYPE_BONUS = {
+        'running':      1.0,
+        'cycling':      1.0,
+        'swimming':     1.0,
+        'football':     1.0,
+        'hiit':         1.5,
+        'physical_job': 1.5,
+        'gym':          0.5,
+        'walking':      0.0,
+        'yoga':         0.0,
+    }
 
     GENDER_CHOICES = [
         ('male', 'Male'),
@@ -38,16 +82,46 @@ class UserProfile(models.Model):
     activity_level = models.CharField(
         max_length=20, choices=ACTIVITY_CHOICES, default='moderate')
 
+    # Activity scoring system
+    activity_frequency = models.CharField(
+        max_length=10, choices=FREQUENCY_CHOICES, blank=True, default='')
+    activity_intensity = models.CharField(
+        max_length=10, choices=INTENSITY_CHOICES, blank=True, default='')
+    activity_duration = models.CharField(
+        max_length=10, choices=DURATION_CHOICES, blank=True, default='')
+    activity_types = models.TextField(blank=True, default='')
+    lifestyle = models.CharField(
+        max_length=10, choices=LIFESTYLE_CHOICES, blank=True, default='desk')
+
     # Medical conditions
     is_diabetic = models.BooleanField(default=False)
     has_hypertension = models.BooleanField(default=False)
     is_celiac = models.BooleanField(default=False)
     is_lactose_intolerant = models.BooleanField(default=False)
+    DIABETES_TYPE_CHOICES = [
+        ('type_1',      'Type 1'),
+        ('type_2',      'Type 2'),
+        ('gestational', 'Gestational'),
+    ]
+    LACTOSE_LEVEL_CHOICES = [
+        ('mild',   'Mild'),
+        ('severe', 'Severe'),
+    ]
+
     is_vegan = models.BooleanField(default=False)
     is_vegetarian = models.BooleanField(default=False)
+    is_flexitarian = models.BooleanField(default=False)
+    diabetes_type = models.CharField(
+        max_length=15, choices=DIABETES_TYPE_CHOICES, blank=True, default='')
+    lactose_intolerance_level = models.CharField(
+        max_length=10, choices=LACTOSE_LEVEL_CHOICES, blank=True, default='')
 
     # Allergies & restrictions
     allergies = models.TextField(blank=True, default='')
+
+    # Medical disclaimer consent
+    medical_consent_accepted = models.BooleanField(default=False)
+    medical_consent_at = models.DateTimeField(null=True, blank=True)
 
     # Daily nutritional targets (manual override)
     daily_calories = models.FloatField(null=True, blank=True)
@@ -66,6 +140,10 @@ class UserProfile(models.Model):
         return f"{self.user.username} - Profile"
 
     @property
+    def is_profile_complete(self):
+        return self.weight is not None and self.height is not None
+
+    @property
     def age(self):
         if not self.date_of_birth:
             return None
@@ -78,6 +156,39 @@ class UserProfile(models.Model):
         return None
 
     @property
+    def activity_score(self):
+        freq   = {'0_1': 0, '2_3': 1, '4_5': 2, '6_7': 3}
+        intens = {'low': 0, 'moderate': 1, 'high': 2, 'extreme': 3}
+        dur    = {'under_30': 0, '30_60': 1, '60_90': 2, 'over_90': 3}
+        score = (
+            freq.get(self.activity_frequency, 0) +
+            intens.get(self.activity_intensity, 0) +
+            dur.get(self.activity_duration, 0)
+        )
+        if self.activity_types:
+            types = {t.strip() for t in self.activity_types.split(',')}
+            bonus = max((self._TYPE_BONUS.get(t, 0.0) for t in types), default=0.0)
+            score += bonus
+        return score
+
+    @property
+    def activity_multiplier(self):
+        lifestyle_bonus = self._LIFESTYLE_BONUS.get(self.lifestyle, 0.0)
+        if self.activity_frequency:
+            s = self.activity_score
+            if s <= 1:  base = 1.2
+            elif s <= 3: base = 1.375
+            elif s <= 5: base = 1.55
+            elif s <= 7: base = 1.725
+            else:        base = 1.9
+        else:
+            base = {
+                'sedentary': 1.2, 'light': 1.375, 'moderate': 1.55,
+                'active': 1.725,  'very_active': 1.9,
+            }.get(self.activity_level, 1.55)
+        return round(base + lifestyle_bonus, 3)
+
+    @property
     def daily_calorie_target(self):
         """Mifflin-St Jeor formula. Returns manual override if set."""
         if self.daily_calories:
@@ -86,18 +197,10 @@ class UserProfile(models.Model):
             return None
         bmr = 10 * self.weight + 6.25 * self.height - 5 * self.age
         bmr += 5 if self.gender != 'female' else -161
-        multipliers = {
-            'sedentary': 1.2,
-            'light': 1.375,
-            'moderate': 1.55,
-            'active': 1.725,
-            'very_active': 1.9,
-        }
-        tdee = bmr * multipliers.get(self.activity_level, 1.55)
+        tdee = bmr * self.activity_multiplier
         goal_adjustments = {
             'lose_weight': -500,
             'gain_muscle': +300,
-            'maintain': 0,
             'eat_healthy': 0,
         }
         adjustment = goal_adjustments.get(self.goal, 0)
@@ -106,10 +209,9 @@ class UserProfile(models.Model):
     # g/kg body weight per goal — scientifically grounded
     _MACRO_PER_KG = {
         #                protein  fat   sugar_%calories  salt
-        'lose_weight':  (2.0,    0.9,  0.05,            5),
-        'gain_muscle':  (1.8,    0.9,  0.10,            6),
-        'maintain':     (1.2,    1.0,  0.10,            5),
-        'eat_healthy':  (1.2,    0.9,  0.05,            5),
+        'eat_healthy':  (1.5,    0.9,  0.05,            5),
+        'lose_weight':  (1.8,    0.9,  0.05,            5),
+        'gain_muscle':  (2.0,    1.0,  0.08,            6),
     }
 
     def _macros_from_weight(self):
@@ -118,7 +220,7 @@ class UserProfile(models.Model):
             return None
         kcal = self.daily_calorie_target
         protein_per_kg, fat_per_kg, sugar_pct, salt = self._MACRO_PER_KG.get(
-            self.goal, self._MACRO_PER_KG['maintain'])
+            self.goal, self._MACRO_PER_KG['eat_healthy'])
 
         protein_g = round(self.weight * protein_per_kg)
         fat_g = round(self.weight * fat_per_kg)
@@ -253,6 +355,38 @@ class FoodIntake(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.name} ({self.consumed_at:%Y-%m-%d})"
+
+
+class DocumentAnalysis(models.Model):
+    """AI-extracted values from a medical document."""
+    document = models.OneToOneField(
+        'MedicalDocument', on_delete=models.CASCADE, related_name='analysis')
+
+    # Extracted biomarkers
+    blood_glucose     = models.FloatField(null=True, blank=True)  # mg/dL
+    hba1c             = models.FloatField(null=True, blank=True)  # %
+    cholesterol_total = models.FloatField(null=True, blank=True)  # mg/dL
+    cholesterol_ldl   = models.FloatField(null=True, blank=True)  # mg/dL
+    cholesterol_hdl   = models.FloatField(null=True, blank=True)  # mg/dL
+    triglycerides     = models.FloatField(null=True, blank=True)  # mg/dL
+    blood_pressure_systolic  = models.IntegerField(null=True, blank=True)
+    blood_pressure_diastolic = models.IntegerField(null=True, blank=True)
+    vitamin_d  = models.FloatField(null=True, blank=True)  # ng/mL
+    vitamin_b12 = models.FloatField(null=True, blank=True)  # pg/mL
+    ferritin   = models.FloatField(null=True, blank=True)  # ng/mL
+
+    # AI-generated insights
+    summary                  = models.TextField(blank=True, default='')
+    key_findings             = models.JSONField(default=list)
+    dietary_recommendations  = models.JSONField(default=list)
+
+    analyzed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-analyzed_at']
+
+    def __str__(self):
+        return f"Analysis — {self.document.title}"
 
 
 class MedicalDocument(models.Model):

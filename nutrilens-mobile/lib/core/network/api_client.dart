@@ -2,8 +2,9 @@ import 'package:dio/dio.dart';
 import '../storage/storage_service.dart';
 
 class ApiClient {
-  // static const String baseUrl = 'http://172.20.26.136:8000/api'; // Fac IP
-  static const String baseUrl = 'http://192.168.3.19:8000/api'; // Home IP
+  // static const String baseUrl = 'http://172.20.10.68:8000/api'; // Fac IP
+  static const String baseUrl = 'http://192.168.3.28:8000/api'; // Home IP
+  // static const String baseUrl = 'http://localhost:8000/api'; // macOS desktop
   static Dio? _instance;
 
   static Dio get instance {
@@ -11,8 +12,8 @@ class ApiClient {
 
     _instance = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
     ));
 

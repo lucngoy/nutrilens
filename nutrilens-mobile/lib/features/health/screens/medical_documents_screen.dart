@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/document_picker_service.dart';
 import '../../../core/widgets/app_dialogs.dart';
 import '../providers/health_provider.dart';
 import '../models/medical_document_model.dart';
+import '../widgets/medical_disclaimer.dart';
 
 class MedicalDocumentsScreen extends ConsumerStatefulWidget {
   const MedicalDocumentsScreen({super.key});
@@ -500,7 +502,21 @@ class _MedicalDocumentsScreenState
     );
   }
 
-  void _showUploadSheet(BuildContext context) {
+  Future<void> _showUploadSheet(BuildContext context) async {
+    final profile = ref.read(healthProfileProvider).valueOrNull;
+    final hasConsent = profile?.medicalConsentAccepted ?? false;
+
+    if (!hasConsent) {
+      final accepted = await showMedicalConsentModal(context);
+      if (!accepted) return;
+      // Refresh profile so consent is reflected
+      await ref.read(healthProfileProvider.notifier).fetchProfile();
+    }
+    if (!mounted) return;
+    _doShowUploadSheet(context);
+  }
+
+  void _doShowUploadSheet(BuildContext context) {
     final titleController = TextEditingController();
     final notesController = TextEditingController();
     String selectedType = 'blood_test';
@@ -599,12 +615,55 @@ class _MedicalDocumentsScreenState
               const SizedBox(height: 8),
               InkWell(
                 onTap: () async {
-                  final picker = ImagePicker();
-                  final picked = await picker.pickImage(
-                      source: ImageSource.gallery, imageQuality: 85);
-                  if (picked != null) {
-                    setModalState(() => selectedFile = File(picked.path));
-                  }
+                  await showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+                    builder: (_) => SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.picture_as_pdf_outlined, color: Colors.red),
+                            title: const Text('PDF or document'),
+                            subtitle: const Text('From Files app'),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final file = await DocumentPickerService.pickDocument();
+                              if (file != null) {
+                                setModalState(() => selectedFile = file);
+                              }
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.photo_library_outlined, color: Colors.blue),
+                            title: const Text('Choose from gallery'),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final picked = await ImagePicker().pickImage(
+                                  source: ImageSource.gallery, imageQuality: 85);
+                              if (picked != null) {
+                                setModalState(() => selectedFile = File(picked.path));
+                              }
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.camera_alt_outlined, color: Colors.green),
+                            title: const Text('Take a photo'),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final picked = await ImagePicker().pickImage(
+                                  source: ImageSource.camera, imageQuality: 85);
+                              if (picked != null) {
+                                setModalState(() => selectedFile = File(picked.path));
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: Container(

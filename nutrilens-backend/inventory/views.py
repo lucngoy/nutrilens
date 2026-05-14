@@ -1,8 +1,8 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, parsers
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import InventoryItem, ScanHistory
-from .serializers import InventoryItemSerializer, ScanHistorySerializer
+from .models import InventoryItem, ScanHistory, UserProduct, UserProductVote
+from .serializers import InventoryItemSerializer, ScanHistorySerializer, UserProductSerializer, UserProductVoteSerializer
 import requests
 from django.http import JsonResponse
 
@@ -103,6 +103,36 @@ class ProductLookupView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, barcode):
+        # Check user-contributed products first
+        try:
+            up = UserProduct.objects.get(user=request.user, barcode=barcode)
+            return JsonResponse({
+                'status': 1,
+                'source': 'user',
+                'product': {
+                    'code': up.barcode,
+                    'product_name': up.name,
+                    'brands': up.brand,
+                    'image_url': None,
+                    'nutriscore_grade': None,
+                    'allergens_tags': [],
+                    'ingredients': [],
+                    'nutriments': {
+                        'energy-kcal_100g': up.calories,
+                        'proteins_100g': up.protein,
+                        'carbohydrates_100g': up.carbohydrates,
+                        'fat_100g': up.fat,
+                        'sugars_100g': up.sugar,
+                        'salt_100g': up.salt,
+                        'saturated-fat_100g': None,
+                        'fiber_100g': None,
+                    },
+                }
+            })
+        except UserProduct.DoesNotExist:
+            pass
+
+        # Fall back to OpenFoodFacts
         try:
             response = requests.get(
                 f'https://world.openfoodfacts.org/api/v0/product/{barcode}.json',
@@ -114,6 +144,64 @@ class ProductLookupView(APIView):
             return JsonResponse({'error': 'Request timeout'}, status=408)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+class UserProductListCreateView(generics.ListCreateAPIView):
+    serializer_class = UserProductSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.JSONParser]
+
+    def get_queryset(self):
+        return UserProduct.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class UserProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = UserProductSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [parsers.MultiPartParser, parsers.JSONParser]
+
+    def get_queryset(self):
+        return UserProduct.objects.filter(user=self.request.user)
+
+
+class UserProductVoteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            product = UserProduct.objects.get(pk=pk)
+        except UserProduct.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if product.user == request.user:
+            return Response({'error': 'You cannot vote on your own product'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        vote_type = request.data.get('vote')
+        if vote_type not in ('confirm', 'flag'):
+            return Response({'error': 'vote must be "confirm" or "flag"'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        UserProductVote.objects.update_or_create(
+            user=request.user,
+            product=product,
+            defaults={'vote': vote_type},
+        )
+
+        product.confirmation_count = product.votes.filter(vote='confirm').count()
+        product.flag_count = product.votes.filter(vote='flag').count()
+        product.save(update_fields=['confirmation_count', 'flag_count'])
+        product.update_status()
+
+        return Response({
+            'status': product.status,
+            'confirmation_count': product.confirmation_count,
+            'flag_count': product.flag_count,
+            'your_vote': vote_type,
+        })
         
 
 class ScanHistoryListView(generics.ListAPIView):

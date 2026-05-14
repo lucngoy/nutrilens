@@ -22,6 +22,8 @@ import '../../features/nutrition/screens/weekly_report_screen.dart';
 import '../../features/nutrition/screens/monthly_report_screen.dart';
 import '../../features/health/screens/health_progress_screen.dart';
 import '../../features/budget/screens/budget_screen.dart';
+import '../../features/auth/screens/profile_setup_screen.dart';
+import '../../features/nutribot/screens/nutribot_screen.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
@@ -44,10 +46,19 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isAuthRoute = location == '/login' || location == '/register';
       final isOnboarding = location == '/onboarding';
+      final isProfileSetup = location == '/profile-setup';
 
       if (isLoading) return null;
-      if (isLoggedIn && (isAuthRoute || isOnboarding)) return '/home';
-      if (!isLoggedIn && !isAuthRoute && !isOnboarding) return '/login';
+
+      if (isLoggedIn) {
+        final profile = authState.valueOrNull?.profile;
+        final profileComplete = profile?.isProfileComplete ?? false;
+
+        if (!profileComplete && !isProfileSetup) return '/profile-setup';
+        if (profileComplete && (isAuthRoute || isOnboarding || isProfileSetup)) return '/home';
+      } else {
+        if (!isAuthRoute && !isOnboarding) return '/login';
+      }
       return null;
     },
     routes: [
@@ -111,6 +122,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/budget',
           builder: (context, state) => const BudgetScreen()),
+      GoRoute(
+          path: '/profile-setup',
+          builder: (context, state) => const ProfileSetupScreen()),
+      GoRoute(
+          path: '/nutribot',
+          builder: (context, state) => const NutriBotScreen()),
     ],
   );
 });

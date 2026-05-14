@@ -6,6 +6,8 @@ import '../models/product_model.dart';
 import '../models/analysis_model.dart';
 import '../providers/analysis_provider.dart';
 import '../../scanner/providers/scan_history_provider.dart';
+import '../../../core/network/api_client.dart';
+import '../../../features/nutribot/screens/nutribot_screen.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final ProductModel product;
@@ -158,6 +160,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ],
                       const SizedBox(height: 16),
 
+                      // User product badge + vote
+                      if (product.source == 'user') ...[
+                        _UserProductBadge(
+                          status: product.userProductStatus ?? 'pending',
+                          productId: product.userProductId,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       // Nutriscore
                       if (product.nutriscore != null) ...[
                         _NutriscoreCard(score: product.nutriscore!),
@@ -244,11 +255,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () =>
-                          ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                                Text('AI Assistant coming in Sprint 3!')),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => NutriBotScreen(product: product),
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
@@ -1050,4 +1061,120 @@ class _IngredientsCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UserProductBadge extends StatefulWidget {
+  final String status;
+  final int? productId;
+  const _UserProductBadge({required this.status, this.productId});
+
+  @override
+  State<_UserProductBadge> createState() => _UserProductBadgeState();
+}
+
+class _UserProductBadgeState extends State<_UserProductBadge> {
+  String? _myVote;
+  bool _voting = false;
+
+  Color get _badgeColor {
+    switch (widget.status) {
+      case 'approved':            return Colors.green;
+      case 'community_verified':  return Colors.blue;
+      case 'rejected':            return Colors.red;
+      default:                    return Colors.orange;
+    }
+  }
+
+  String get _badgeLabel {
+    switch (widget.status) {
+      case 'approved':           return '✅ Verified by NutriLens';
+      case 'community_verified': return '👥 Community verified';
+      case 'rejected':           return '❌ Rejected';
+      default:                   return '⚠️ Added by user — not yet verified';
+    }
+  }
+
+  Future<void> _vote(String voteType) async {
+    if (widget.productId == null || _voting) return;
+    setState(() => _voting = true);
+    try {
+      await ApiClient.instance.post(
+        '/inventory/user-products/${widget.productId}/vote/',
+        data: {'vote': voteType},
+      );
+      setState(() => _myVote = voteType);
+    } catch (_) {}
+    setState(() => _voting = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _badgeColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _badgeColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_badgeLabel, style: TextStyle(fontSize: 13,
+              fontWeight: FontWeight.w600, color: _badgeColor)),
+          if (widget.productId != null &&
+              widget.status != 'approved' &&
+              widget.status != 'rejected') ...[
+            const SizedBox(height: 10),
+            const Text('Is this information correct?',
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
+            const SizedBox(height: 8),
+            Row(children: [
+              _VoteButton(
+                label: '✓ Confirm',
+                active: _myVote == 'confirm',
+                color: Colors.green,
+                loading: _voting,
+                onTap: () => _vote('confirm'),
+              ),
+              const SizedBox(width: 10),
+              _VoteButton(
+                label: '⚑ Flag issue',
+                active: _myVote == 'flag',
+                color: Colors.red,
+                loading: _voting,
+                onTap: () => _vote('flag'),
+              ),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _VoteButton extends StatelessWidget {
+  final String label;
+  final bool active;
+  final Color color;
+  final bool loading;
+  final VoidCallback onTap;
+  const _VoteButton({required this.label, required this.active,
+      required this.color, required this.loading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: loading ? null : onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: active ? color.withOpacity(0.12) : const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: active ? color : Colors.transparent),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: active ? color : Colors.black54)),
+    ),
+  );
 }

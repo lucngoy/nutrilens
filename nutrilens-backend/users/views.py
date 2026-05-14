@@ -1,4 +1,5 @@
 import re
+from django.conf import settings
 from django.contrib.auth.models import User
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
@@ -6,7 +7,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.utils import timezone
-from .models import HealthSnapshot, MedicalDocument, FoodIntake
+from .models import HealthSnapshot, MedicalDocument, FoodIntake, DocumentAnalysis
 from .serializers import (
     RegisterSerializer, UserSerializer, UserProfileSerializer,
     HealthSnapshotSerializer, MedicalDocumentSerializer, FoodIntakeSerializer,
@@ -115,6 +116,88 @@ class MedicalDocumentListView(generics.ListAPIView):
         return MedicalDocument.objects.filter(user=self.request.user)
 
 
+def _analyze_document(document):
+    """Extract medical values from a document using Groq. Runs synchronously."""
+    import base64, json, mimetypes
+    api_key = settings.GROQ_API_KEY
+    if not api_key:
+        return
+
+    file_path = document.file.path
+    mime, _ = mimetypes.guess_type(file_path)
+
+    system_prompt = (
+        "You are a medical document analyzer. Extract biomarker values and return ONLY valid JSON "
+        "with this exact structure (use null for missing values):\n"
+        '{"blood_glucose":null,"hba1c":null,"cholesterol_total":null,"cholesterol_ldl":null,'
+        '"cholesterol_hdl":null,"triglycerides":null,"blood_pressure_systolic":null,'
+        '"blood_pressure_diastolic":null,"vitamin_d":null,"vitamin_b12":null,"ferritin":null,'
+        '"summary":"one sentence summary","key_findings":[],"dietary_recommendations":[]}'
+    )
+
+    try:
+        from groq import Groq
+        client = Groq(api_key=api_key)
+
+        if mime and mime.startswith('image/'):
+            with open(file_path, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode()
+            messages = [{'role': 'user', 'content': [
+                {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,{b64}'}},
+                {'type': 'text', 'text': 'Extract all medical biomarker values from this document.'}
+            ]}]
+            model = 'meta-llama/llama-4-scout-17b-16e-instruct'
+        else:
+            # PDF or text — extract text
+            text = ''
+            if file_path.endswith('.pdf'):
+                try:
+                    from pypdf import PdfReader
+                    reader = PdfReader(file_path)
+                    text = '\n'.join(p.extract_text() or '' for p in reader.pages)
+                except Exception:
+                    text = 'Could not extract PDF text.'
+            else:
+                with open(file_path, 'r', errors='ignore') as f:
+                    text = f.read()
+            messages = [{'role': 'user', 'content': f'Extract medical values from:\n{text[:4000]}'}]
+            model = 'llama-3.1-8b-instant'
+
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{'role': 'system', 'content': system_prompt}] + messages,
+            max_tokens=800,
+            temperature=0.1,
+        )
+        raw = completion.choices[0].message.content.strip()
+        # Extract JSON block
+        start = raw.find('{')
+        end = raw.rfind('}') + 1
+        data = json.loads(raw[start:end]) if start != -1 else {}
+
+        DocumentAnalysis.objects.update_or_create(
+            document=document,
+            defaults={
+                'blood_glucose':             data.get('blood_glucose'),
+                'hba1c':                     data.get('hba1c'),
+                'cholesterol_total':         data.get('cholesterol_total'),
+                'cholesterol_ldl':           data.get('cholesterol_ldl'),
+                'cholesterol_hdl':           data.get('cholesterol_hdl'),
+                'triglycerides':             data.get('triglycerides'),
+                'blood_pressure_systolic':   data.get('blood_pressure_systolic'),
+                'blood_pressure_diastolic':  data.get('blood_pressure_diastolic'),
+                'vitamin_d':                 data.get('vitamin_d'),
+                'vitamin_b12':               data.get('vitamin_b12'),
+                'ferritin':                  data.get('ferritin'),
+                'summary':                   data.get('summary', ''),
+                'key_findings':              data.get('key_findings', []),
+                'dietary_recommendations':   data.get('dietary_recommendations', []),
+            }
+        )
+    except Exception:
+        pass  # Analysis failure never blocks the upload
+
+
 class MedicalDocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -122,7 +205,10 @@ class MedicalDocumentUploadView(APIView):
     def post(self, request):
         serializer = MedicalDocumentSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=request.user)
+            document = serializer.save(user=request.user)
+            # Trigger AI analysis in background thread so upload returns immediately
+            import threading
+            threading.Thread(target=_analyze_document, args=(document,), daemon=True).start()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -202,16 +288,23 @@ class ProductAnalysisView(APIView):
             if ratio >= 1.0:
                 sev = 'danger' if profile.is_diabetic else 'warning'
                 intensities['high_sugar'] = ratio
-                detail = (
-                    f'Exceeds your sugar limit by +{over_pct}% — avoid'
-                    if profile.is_diabetic
-                    else f'Exceeds sugar threshold by +{over_pct}% — limit'
-                )
+                if profile.is_diabetic:
+                    dtype = profile.diabetes_type
+                    if dtype == 'type_1':
+                        detail = f'Exceeds sugar limit by +{over_pct}% — requires insulin adjustment'
+                        rec = 'Avoid — Type 1 diabetics must carefully match sugar intake to insulin.'
+                    elif dtype == 'gestational':
+                        detail = f'Exceeds sugar limit by +{over_pct}% — avoid during pregnancy'
+                        rec = 'Avoid — gestational diabetes requires strict sugar control.'
+                    else:
+                        detail = f'Exceeds sugar limit by +{over_pct}% — avoid'
+                        rec = 'Avoid — high sugar worsens insulin resistance in Type 2 diabetes.'
+                else:
+                    detail = f'Exceeds sugar threshold by +{over_pct}% — limit'
+                    rec = 'Consider a lower-sugar alternative.'
                 warnings.append({'code': 'high_sugar', 'label': 'High Sugar',
                                   'severity': sev, 'detail': detail})
-                recommendations.append(
-                    'Avoid — high sugar is dangerous for diabetics.' if profile.is_diabetic
-                    else 'Consider a lower-sugar alternative.')
+                recommendations.append(rec)
             elif ratio >= 0.7:
                 warnings.append({'code': 'soft_sugar',
                                   'label': 'Approaching sugar limit',
@@ -275,9 +368,9 @@ class ProductAnalysisView(APIView):
         # ── Allergens vs health conditions ───────────────────────────────────
         condition_map = {
             'gluten': profile.is_celiac, 'wheat': profile.is_celiac,
-            'milk': profile.is_lactose_intolerant,
+            'milk': profile.is_lactose_intolerant and profile.lactose_intolerance_level == 'severe',
             'lactose': profile.is_lactose_intolerant,
-            'dairy': profile.is_lactose_intolerant,
+            'dairy': profile.is_lactose_intolerant and profile.lactose_intolerance_level == 'severe',
         }
         added_allergen_codes = set()
         has_critical_danger = False
@@ -321,6 +414,14 @@ class ProductAnalysisView(APIView):
                     warnings.append({'code': 'not_vegetarian', 'label': 'Not Vegetarian',
                                      'severity': 'warning', 'detail': f'Contains {m}'})
                     recommendations.append('Not suitable for vegetarians.')
+                    break
+        elif profile.is_flexitarian:
+            heavy_meat = ['beef', 'pork', 'processed meat', 'sausage', 'bacon']
+            for m in heavy_meat:
+                if m in ingredients_text:
+                    warnings.append({'code': 'high_meat', 'label': 'High meat content',
+                                     'severity': 'info', 'detail': f'Contains {m} — consider limiting'})
+                    recommendations.append('High meat content — flexitarian diet recommends limiting.')
                     break
 
         # ── NL-24: Problematic ingredients ───────────────────────────────────
@@ -980,3 +1081,100 @@ class FoodIntakeSummaryView(APIView):
             'status': _status(),
             'entry_count': intakes.count(),
         })
+
+
+class MedicalConsentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        profile = request.user.profile
+        profile.medical_consent_accepted = True
+        profile.medical_consent_at = timezone.now()
+        profile.save(update_fields=['medical_consent_accepted', 'medical_consent_at'])
+        return Response({'accepted': True, 'accepted_at': profile.medical_consent_at})
+
+
+class NutriBotView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _build_system_prompt(self, user):
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            return "You are NutriBot, a helpful nutrition assistant inside the NutriLens app."
+
+        lines = [
+            "You are NutriBot, an expert nutrition assistant inside the NutriLens app.",
+            "Answer questions about food, nutrition, health, and diet. Be concise and practical.",
+            "",
+            f"User profile:",
+            f"- Goal: {profile.goal}",
+            f"- Activity: {profile.activity_frequency} days/week, {profile.activity_intensity} intensity",
+            f"- Lifestyle: {profile.lifestyle}",
+        ]
+
+        if profile.daily_calorie_target:
+            lines.append(f"- Daily calorie target: {profile.daily_calorie_target} kcal")
+        if profile.bmi:
+            lines.append(f"- BMI: {profile.bmi} ({profile.bmiCategory if hasattr(profile, 'bmiCategory') else ''})")
+
+        conditions = []
+        if profile.is_diabetic:
+            conditions.append(f"diabetes ({profile.diabetes_type})" if profile.diabetes_type else "diabetes")
+        if profile.has_hypertension:
+            conditions.append("hypertension")
+        if profile.is_celiac:
+            conditions.append("celiac disease")
+        if profile.is_lactose_intolerant:
+            level = f" ({profile.lactose_intolerance_level})" if profile.lactose_intolerance_level else ""
+            conditions.append(f"lactose intolerance{level}")
+        if profile.is_vegan:
+            conditions.append("vegan")
+        if profile.is_vegetarian:
+            conditions.append("vegetarian")
+        if profile.is_flexitarian:
+            conditions.append("flexitarian")
+        if conditions:
+            lines.append(f"- Health conditions/diet: {', '.join(conditions)}")
+        if profile.allergies:
+            lines.append(f"- Allergies: {profile.allergies}")
+
+        lines += [
+            "",
+            "Always tailor advice to the user's profile. Keep responses short (2-4 sentences max) unless a detailed explanation is needed.",
+        ]
+        return "\n".join(lines)
+
+    def post(self, request):
+        api_key = settings.GROQ_API_KEY
+        if not api_key:
+            return Response({'error': 'NutriBot is not configured yet.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        message = request.data.get('message', '').strip()
+        history = request.data.get('history', [])
+
+        if not message:
+            return Response({'error': 'message is required'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from groq import Groq
+            client = Groq(api_key=api_key)
+
+            messages = [{'role': 'system', 'content': self._build_system_prompt(request.user)}]
+            for h in history[-10:]:
+                if h.get('role') in ('user', 'assistant') and h.get('content'):
+                    messages.append({'role': h['role'], 'content': h['content']})
+            messages.append({'role': 'user', 'content': message})
+
+            completion = client.chat.completions.create(
+                model='llama-3.1-8b-instant',
+                messages=messages,
+                max_tokens=512,
+                temperature=0.7,
+            )
+            reply = completion.choices[0].message.content
+            return Response({'reply': reply})
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -6,12 +6,23 @@ class HealthProfile {
   final double? height;
   final String goal;
   final String activityLevel;
+  final String activityFrequency;
+  final String activityIntensity;
+  final String activityDuration;
+  final List<String> activityTypes;
+  final String lifestyle;
+  final bool medicalConsentAccepted;
+  final double? activityScore;
+  final double? activityMultiplier;
   final bool isDiabetic;
   final bool hasHypertension;
   final bool isCeliac;
   final bool isLactoseIntolerant;
   final bool isVegan;
   final bool isVegetarian;
+  final bool isFlexitarian;
+  final String diabetesType;
+  final String lactoseIntoleranceLevel;
   final String allergies;
   final String? avatar;
   final double? dailyCalories;
@@ -36,12 +47,23 @@ class HealthProfile {
     this.height,
     required this.goal,
     required this.activityLevel,
+    this.activityFrequency = '',
+    this.activityIntensity = '',
+    this.activityDuration = '',
+    this.activityTypes = const [],
+    this.lifestyle = 'desk',
+    this.medicalConsentAccepted = false,
+    this.activityScore,
+    this.activityMultiplier,
     required this.isDiabetic,
     required this.hasHypertension,
     required this.isCeliac,
     required this.isLactoseIntolerant,
     required this.isVegan,
     required this.isVegetarian,
+    required this.isFlexitarian,
+    this.diabetesType = '',
+    this.lactoseIntoleranceLevel = '',
     required this.allergies,
     this.avatar,
     this.dailyCalories,
@@ -70,12 +92,25 @@ class HealthProfile {
       height: json['height']?.toDouble(),
       goal: json['goal'] ?? 'eat_healthy',
       activityLevel: json['activity_level'] ?? 'moderate',
+      activityFrequency: json['activity_frequency'] ?? '',
+      activityIntensity: json['activity_intensity'] ?? '',
+      activityDuration: json['activity_duration'] ?? '',
+      activityTypes: json['activity_types'] != null && (json['activity_types'] as String).isNotEmpty
+          ? (json['activity_types'] as String).split(',').map((s) => s.trim()).toList()
+          : [],
+      lifestyle: json['lifestyle'] ?? 'desk',
+      medicalConsentAccepted: json['medical_consent_accepted'] ?? false,
+      activityScore: json['activity_score']?.toDouble(),
+      activityMultiplier: json['activity_multiplier']?.toDouble(),
       isDiabetic: json['is_diabetic'] ?? false,
       hasHypertension: json['has_hypertension'] ?? false,
       isCeliac: json['is_celiac'] ?? false,
       isLactoseIntolerant: json['is_lactose_intolerant'] ?? false,
       isVegan: json['is_vegan'] ?? false,
       isVegetarian: json['is_vegetarian'] ?? false,
+      isFlexitarian: json['is_flexitarian'] ?? false,
+      diabetesType: json['diabetes_type'] ?? '',
+      lactoseIntoleranceLevel: json['lactose_intolerance_level'] ?? '',
       allergies: json['allergies'] ?? '',
       avatar: json['avatar'],
       dailyCalories: json['daily_calories']?.toDouble(),
@@ -102,12 +137,20 @@ class HealthProfile {
       'height': height,
       'goal': goal,
       'activity_level': activityLevel,
+      'activity_frequency': activityFrequency,
+      'activity_intensity': activityIntensity,
+      'activity_duration': activityDuration,
+      'activity_types': activityTypes.join(','),
+      'lifestyle': lifestyle,
       'is_diabetic': isDiabetic,
       'has_hypertension': hasHypertension,
       'is_celiac': isCeliac,
       'is_lactose_intolerant': isLactoseIntolerant,
       'is_vegan': isVegan,
       'is_vegetarian': isVegetarian,
+      'is_flexitarian': isFlexitarian,
+      'diabetes_type': diabetesType,
+      'lactose_intolerance_level': lactoseIntoleranceLevel,
       'allergies': allergies,
       'daily_calories': dailyCalories,
       'daily_protein': dailyProtein,
@@ -125,12 +168,20 @@ class HealthProfile {
     double? height,
     String? goal,
     String? activityLevel,
+    String? activityFrequency,
+    String? activityIntensity,
+    String? activityDuration,
+    List<String>? activityTypes,
+    String? lifestyle,
     bool? isDiabetic,
     bool? hasHypertension,
     bool? isCeliac,
     bool? isLactoseIntolerant,
     bool? isVegan,
     bool? isVegetarian,
+    bool? isFlexitarian,
+    String? diabetesType,
+    String? lactoseIntoleranceLevel,
     String? allergies,
     double? dailyCalories,
     double? dailyProtein,
@@ -147,12 +198,20 @@ class HealthProfile {
       height: height ?? this.height,
       goal: goal ?? this.goal,
       activityLevel: activityLevel ?? this.activityLevel,
+      activityFrequency: activityFrequency ?? this.activityFrequency,
+      activityIntensity: activityIntensity ?? this.activityIntensity,
+      activityDuration: activityDuration ?? this.activityDuration,
+      activityTypes: activityTypes ?? this.activityTypes,
+      lifestyle: lifestyle ?? this.lifestyle,
       isDiabetic: isDiabetic ?? this.isDiabetic,
       hasHypertension: hasHypertension ?? this.hasHypertension,
       isCeliac: isCeliac ?? this.isCeliac,
       isLactoseIntolerant: isLactoseIntolerant ?? this.isLactoseIntolerant,
       isVegan: isVegan ?? this.isVegan,
       isVegetarian: isVegetarian ?? this.isVegetarian,
+      isFlexitarian: isFlexitarian ?? this.isFlexitarian,
+      diabetesType: diabetesType ?? this.diabetesType,
+      lactoseIntoleranceLevel: lactoseIntoleranceLevel ?? this.lactoseIntoleranceLevel,
       allergies: allergies ?? this.allergies,
       avatar: avatar,
       dailyCalories: dailyCalories ?? this.dailyCalories,

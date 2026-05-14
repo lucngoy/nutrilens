@@ -5,6 +5,7 @@ import '../providers/scanner_provider.dart';
 import '../providers/scan_history_provider.dart';
 import '../providers/analysis_provider.dart';
 import 'product_detail_screen.dart';
+import 'add_user_product_screen.dart';
 
 class ScannerScreen extends ConsumerStatefulWidget {
   /// When true, popping returns a ProductModel instead of opening ProductDetailScreen.
@@ -81,9 +82,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
             });
           }
         } else {
-          _showSnackbar('Product not found in database.', Colors.orange);
-          _controller.start();
-          setState(() => _isProcessing = false);
+          _showProductNotFoundSheet(barcode!);
         }
       },
       loading: () {},
@@ -99,6 +98,88 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );
+  }
+
+  void _showProductNotFoundSheet(String barcode) {
+    _controller.stop();
+    setState(() => _isProcessing = false);
+    bool navigatingToAdd = false;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            const Icon(Icons.search_off_rounded, size: 40, color: Colors.black38),
+            const SizedBox(height: 12),
+            const Text('Product not found',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text('Barcode: $barcode',
+                style: const TextStyle(fontSize: 13, color: Colors.black45)),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add this product manually',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEC6F2D),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () async {
+                  navigatingToAdd = true;
+                  Navigator.pop(context);
+                  final product = await Navigator.push(context,
+                      MaterialPageRoute(builder: (_) =>
+                          AddUserProductScreen(barcode: barcode)));
+                  if (!mounted) return;
+                  if (product != null) {
+                    if (widget.logMode) {
+                      ref.read(scannedProductProvider.notifier).reset();
+                      Navigator.pop(context, product);
+                    } else {
+                      ref.read(analysisProvider.notifier).analyze(product);
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (_) =>
+                              ProductDetailScreen(product: product)))
+                          .then((_) {
+                        ref.read(analysisProvider.notifier).reset();
+                        ref.read(scannedProductProvider.notifier).reset();
+                        ref.read(scanHistoryProvider.notifier).fetchRecentScans();
+                        _controller.start();
+                      });
+                    }
+                  } else {
+                    _controller.start();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Dismiss', style: TextStyle(color: Colors.black45)),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    ).then((_) {
+      // Only restart if the user dismissed the sheet without going to add screen
+      if (mounted && !navigatingToAdd) _controller.start();
+    });
   }
 
   void _showManualEntry() {

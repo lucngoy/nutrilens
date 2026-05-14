@@ -10,6 +10,7 @@ class UserProfile {
   final String allergies;
   final String? avatar;
   final double? bmi;
+  final bool isProfileComplete;
 
   UserProfile({
     required this.id,
@@ -23,6 +24,7 @@ class UserProfile {
     required this.allergies,
     this.avatar,
     this.bmi,
+    this.isProfileComplete = false,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -40,6 +42,7 @@ class UserProfile {
       allergies: json['allergies'],
       avatar: json['avatar'],
       bmi: json['bmi']?.toDouble(),
+      isProfileComplete: json['is_profile_complete'] ?? false,
     );
   }
 }

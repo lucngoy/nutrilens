@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import InventoryItem, ScanHistory
+from .models import InventoryItem, ScanHistory, UserProduct, UserProductVote
 
 
 class InventoryItemSerializer(serializers.ModelSerializer):
@@ -20,6 +20,26 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at',
                             'daily_consumption', 'days_remaining']
+
+
+class UserProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProduct
+        fields = [
+            'id', 'barcode', 'name', 'brand', 'image',
+            'serving_size', 'serving_unit',
+            'calories', 'protein', 'carbohydrates', 'fat', 'sugar', 'salt',
+            'status', 'confirmation_count', 'flag_count',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'status', 'confirmation_count', 'flag_count', 'created_at', 'updated_at']
+
+
+class UserProductVoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProductVote
+        fields = ['id', 'product', 'vote', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class ScanHistorySerializer(serializers.ModelSerializer):

@@ -100,6 +100,77 @@ class InventoryItem(models.Model):
             return self.days_remaining <= 3
         return self.quantity <= self.low_stock_threshold
 
+class UserProduct(models.Model):
+    """Products created manually by users when not found in OpenFoodFacts."""
+
+    STATUS_CHOICES = [
+        ('pending',            'Pending'),
+        ('community_verified', 'Community Verified'),
+        ('approved',           'Approved'),
+        ('rejected',           'Rejected'),
+    ]
+
+    COMMUNITY_VERIFY_THRESHOLD = 3
+    FLAG_THRESHOLD = 3
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='user_products')
+    barcode = models.CharField(max_length=50, blank=True, default='')
+    name = models.CharField(max_length=255)
+    brand = models.CharField(max_length=255, blank=True, default='')
+    image = models.ImageField(upload_to='user_products/', null=True, blank=True)
+    serving_size = models.FloatField(default=100)
+    serving_unit = models.CharField(max_length=20, default='g')
+
+    # Nutrition per serving
+    calories = models.FloatField(null=True, blank=True)
+    protein = models.FloatField(null=True, blank=True)
+    carbohydrates = models.FloatField(null=True, blank=True)
+    fat = models.FloatField(null=True, blank=True)
+    sugar = models.FloatField(null=True, blank=True)
+    salt = models.FloatField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending')
+    confirmation_count = models.PositiveIntegerField(default=0)
+    flag_count = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name} ({self.status})"
+
+    def update_status(self):
+        if self.status == 'approved' or self.status == 'rejected':
+            return
+        if self.flag_count >= self.FLAG_THRESHOLD:
+            self.status = 'pending'
+        elif self.confirmation_count >= self.COMMUNITY_VERIFY_THRESHOLD:
+            self.status = 'community_verified'
+        self.save(update_fields=['status'])
+
+
+class UserProductVote(models.Model):
+    VOTE_CHOICES = [
+        ('confirm', 'Confirm'),
+        ('flag',    'Flag'),
+    ]
+    user    = models.ForeignKey(User, on_delete=models.CASCADE, related_name='product_votes')
+    product = models.ForeignKey(UserProduct, on_delete=models.CASCADE, related_name='votes')
+    vote    = models.CharField(max_length=10, choices=VOTE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['user', 'product']
+
+    def __str__(self):
+        return f"{self.user.username} — {self.vote} — {self.product.name}"
+
+
 class ScanHistory(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='scan_history')

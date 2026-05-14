@@ -7,6 +7,9 @@ from .views import (
     ProductLookupView,
     ScanHistoryListView,
     ScanHistoryAddView,
+    UserProductListCreateView,
+    UserProductDetailView,
+    UserProductVoteView,
 )
 
 urlpatterns = [
@@ -17,4 +20,7 @@ urlpatterns = [
     path('product/<str:barcode>/', ProductLookupView.as_view(), name='product-lookup'),
     path('scans/', ScanHistoryListView.as_view(), name='scan-history-list'),
     path('scans/add/', ScanHistoryAddView.as_view(), name='scan-history-add'),
+    path('user-products/', UserProductListCreateView.as_view(), name='user-product-list'),
+    path('user-products/<int:pk>/', UserProductDetailView.as_view(), name='user-product-detail'),
+    path('user-products/<int:pk>/vote/', UserProductVoteView.as_view(), name='user-product-vote'),
 ]
