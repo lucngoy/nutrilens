@@ -288,6 +288,28 @@ class ProductAnalysisView(APIView):
         available_fields = sum(1 for v in [sugar, salt, sat_fat, calories] if v is not None)
         data_quality_low = available_fields < 2
 
+        # Detect products that legitimately have no nutrition (water, salt, vinegar, spices…)
+        # Heuristic: no ingredients, no allergens, no nutriscore → naturally nutrition-free
+        _ZERO_NUTRITION_NAMES = [
+            'water', 'eau', 'sparkling', 'still water', 'mineral water',
+            'vinegar', 'salt', 'sel', 'spice', 'épice', 'herb', 'tea',
+            'coffee', 'café', 'thé', 'infusion',
+        ]
+        product_name_lower = data.get('product_name', '').lower()
+        naturally_no_nutrition = (
+            not ingredients_text.strip() and
+            not allergens and
+            not nutriscore and
+            any(k in product_name_lower for k in _ZERO_NUTRITION_NAMES)
+        )
+
+        # A processed product with no nutrition data at all is a red flag
+        no_nutrition_data = (
+            available_fields == 0 and
+            not naturally_no_nutrition and
+            (bool(ingredients_text.strip()) or bool(allergens) or bool(nutriscore))
+        )
+
         # intensities: {warning_code: float} — cap à 2.0
         intensities = {}
 
@@ -521,15 +543,46 @@ class ProductAnalysisView(APIView):
         else:
             score = max(5, min(100, int(raw_score)))
 
-        # 7. Data quality guard (applied first so other caps can further restrict)
-        if data_quality_low:
-            score = min(score, 80)
+        # 7. Data quality guard
+        if no_nutrition_data:
+            # Processed product with zero nutrition fields — avoid until verified
+            score = min(score, 50)
             deduped.insert(0, {
-                'code': 'insufficient_data',
-                'label': 'Incomplete nutritional data',
-                'severity': 'info',
-                'detail': 'Score may not reflect the full product profile',
+                'code': 'no_nutrition_data',
+                'label': 'No nutritional data',
+                'severity': 'warning',
+                'detail': 'This product has no nutritional information — '
+                          'avoid until data is verified',
             })
+        else:
+            # Profile-aware critical missing fields
+            critical_missing = []
+            if sugar is None and profile.is_diabetic:
+                critical_missing.append('sugar')
+            if salt is None and profile.has_hypertension:
+                critical_missing.append('salt')
+            if calories is None and profile.goal in ('lose_weight', 'eat_healthy'):
+                critical_missing.append('calories')
+            if sat_fat is None and profile.has_hypertension:
+                critical_missing.append('saturated fat')
+
+            if critical_missing:
+                fields = ', '.join(critical_missing)
+                score = min(score, 65)
+                deduped.insert(0, {
+                    'code': 'critical_missing_data',
+                    'label': 'Critical data missing for your profile',
+                    'severity': 'warning',
+                    'detail': f'Missing {fields} — cannot fully assess this product for your condition',
+                })
+            elif data_quality_low:
+                score = min(score, 80)
+                deduped.insert(0, {
+                    'code': 'insufficient_data',
+                    'label': 'Incomplete nutritional data',
+                    'severity': 'info',
+                    'detail': 'Score may not reflect the full product profile',
+                })
 
         # 8. Nutri-score D/E guard — poor nutritional quality even with no warnings
         if nutriscore in ('d', 'e'):

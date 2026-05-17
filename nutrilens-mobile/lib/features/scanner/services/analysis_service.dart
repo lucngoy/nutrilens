@@ -9,6 +9,7 @@ class AnalysisService {
   Future<AnalysisResult> analyzeProduct(ProductModel product) async {
     try {
       final response = await _dio.post('/users/health/analyze/', data: {
+        'product_name': product.name,
         'nutrition': {
           'calories': product.nutrition.calories,
           'sugar': product.nutrition.sugar,
