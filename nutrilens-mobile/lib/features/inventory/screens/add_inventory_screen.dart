@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/inventory_provider.dart';
 import '../../scanner/models/product_model.dart';
 import '../../budget/providers/budget_provider.dart';
+import '../../../core/providers/currency_provider.dart';
 
 class AddInventoryScreen extends ConsumerStatefulWidget {
   final ProductModel product;
@@ -263,11 +264,9 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                   // Price
                   _Label('Price paid (optional)'),
                   const SizedBox(height: 8),
-                  _InputField(
+                  _PriceField(
                     controller: _priceController,
-                    hint: '0.00 — logs to grocery budget',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    prefixIcon: Icons.shopping_cart_outlined,
+                    currencySymbol: ref.watch(currencyProvider.notifier).symbol,
                   ),
                   const SizedBox(height: 20),
 
@@ -312,6 +311,7 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                     childAspectRatio: 3.2,
@@ -573,13 +573,54 @@ class _Label extends StatelessWidget {
   }
 }
 
+class _PriceField extends StatelessWidget {
+  final TextEditingController controller;
+  final String currencySymbol;
+  const _PriceField({required this.controller, required this.currencySymbol});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        hintText: '0.00 — logs to grocery budget',
+        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        prefixIcon: Container(
+          width: 40,
+          alignment: Alignment.center,
+          child: Text(currencySymbol,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey)),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFEEEEEE)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFEEEEEE)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFEC6F2D), width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+}
+
 class _InputField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final TextInputType? keyboardType;
-  final IconData? prefixIcon;
   const _InputField(
-      {required this.controller, required this.hint, this.keyboardType, this.prefixIcon});
+      {required this.controller, required this.hint, this.keyboardType});
 
   @override
   Widget build(BuildContext context) {
@@ -589,9 +630,6 @@ class _InputField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-        prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, color: Colors.grey, size: 18)
-            : null,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
