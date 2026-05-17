@@ -1142,9 +1142,9 @@ class BehavioralInsightsView(APIView):
         days_logged = len(by_date)
         consistency_pct = round(days_logged / total_days * 100)
 
-        # Current streak (consecutive days ending today)
+        # Current streak — tolère que aujourd'hui soit vide (avant premier log de la journée)
         streak = 0
-        d = today
+        d = today if by_date.get(today) else today - timedelta(days=1)
         while d >= start:
             if by_date.get(d):
                 streak += 1
