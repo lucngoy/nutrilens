@@ -165,6 +165,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         _UserProductBadge(
                           status: product.userProductStatus ?? 'pending',
                           productId: product.userProductId,
+                          isOwner: product.userProductIsOwner == true,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -398,6 +399,29 @@ class _NutriLensScoreCard extends StatelessWidget {
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: color)),
+                    if (result.labEnriched) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F7FF),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.biotech_outlined, size: 11, color: Color(0xFF2980B9)),
+                            SizedBox(width: 4),
+                            Text('Score uses your lab results',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF2980B9),
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (result.hasDanger) ...[
                       const SizedBox(height: 6),
                       Container(
@@ -1066,7 +1090,8 @@ class _IngredientsCard extends StatelessWidget {
 class _UserProductBadge extends StatefulWidget {
   final String status;
   final int? productId;
-  const _UserProductBadge({required this.status, this.productId});
+  final bool isOwner;
+  const _UserProductBadge({required this.status, this.productId, this.isOwner = false});
 
   @override
   State<_UserProductBadge> createState() => _UserProductBadgeState();
@@ -1075,9 +1100,16 @@ class _UserProductBadge extends StatefulWidget {
 class _UserProductBadgeState extends State<_UserProductBadge> {
   String? _myVote;
   bool _voting = false;
+  late String _currentStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentStatus = widget.status;
+  }
 
   Color get _badgeColor {
-    switch (widget.status) {
+    switch (_currentStatus) {
       case 'approved':            return Colors.green;
       case 'community_verified':  return Colors.blue;
       case 'rejected':            return Colors.red;
@@ -1086,7 +1118,7 @@ class _UserProductBadgeState extends State<_UserProductBadge> {
   }
 
   String get _badgeLabel {
-    switch (widget.status) {
+    switch (_currentStatus) {
       case 'approved':           return '✅ Verified by NutriLens';
       case 'community_verified': return '👥 Community verified';
       case 'rejected':           return '❌ Rejected';
@@ -1098,13 +1130,55 @@ class _UserProductBadgeState extends State<_UserProductBadge> {
     if (widget.productId == null || _voting) return;
     setState(() => _voting = true);
     try {
-      await ApiClient.instance.post(
+      final response = await ApiClient.instance.post(
         '/inventory/user-products/${widget.productId}/vote/',
         data: {'vote': voteType},
       );
-      setState(() => _myVote = voteType);
-    } catch (_) {}
-    setState(() => _voting = false);
+      if (mounted) {
+        final newStatus = response.data['status'] as String? ?? _currentStatus;
+        setState(() {
+          _myVote = voteType;
+          _currentStatus = newStatus;
+        });
+        final isConfirm = voteType == 'confirm';
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Row(children: [
+              Icon(
+                isConfirm ? Icons.check_circle_outline : Icons.flag_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(isConfirm
+                  ? 'Thanks! Your confirmation helps the community.'
+                  : 'Flagged — we\'ll review this product.')),
+            ]),
+            backgroundColor: isConfirm
+                ? const Color(0xFF27AE60)
+                : Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 3),
+          ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ));
+      }
+    } finally {
+      if (mounted) setState(() => _voting = false);
+    }
   }
 
   @override
@@ -1122,24 +1196,29 @@ class _UserProductBadgeState extends State<_UserProductBadge> {
         children: [
           Text(_badgeLabel, style: TextStyle(fontSize: 13,
               fontWeight: FontWeight.w600, color: _badgeColor)),
-          if (widget.productId != null &&
-              widget.status != 'approved' &&
-              widget.status != 'rejected') ...[
+          if (widget.isOwner) ...[
+            const SizedBox(height: 8),
+            const Text('You submitted this product — others can confirm it.',
+                style: TextStyle(fontSize: 12, color: Colors.black45)),
+          ] else if (widget.productId != null &&
+              _currentStatus != 'approved' &&
+              _currentStatus != 'rejected') ...[
             const SizedBox(height: 10),
-            const Text('Is this information correct?',
+            const Text('Do the name, brand and nutrition values match the product packaging?',
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
             const SizedBox(height: 8),
             Row(children: [
               _VoteButton(
-                label: '✓ Confirm',
+                label: '✓ Looks correct',
                 active: _myVote == 'confirm',
-                color: Colors.green,
+                color: const Color(0xFF27AE60),
                 loading: _voting,
+                filled: true,
                 onTap: () => _vote('confirm'),
               ),
               const SizedBox(width: 10),
               _VoteButton(
-                label: '⚑ Flag issue',
+                label: '⚑ Wrong info',
                 active: _myVote == 'flag',
                 color: Colors.red,
                 loading: _voting,
@@ -1158,23 +1237,31 @@ class _VoteButton extends StatelessWidget {
   final bool active;
   final Color color;
   final bool loading;
+  final bool filled; // always show color background
   final VoidCallback onTap;
   const _VoteButton({required this.label, required this.active,
-      required this.color, required this.loading, required this.onTap});
+      required this.color, required this.loading, required this.onTap,
+      this.filled = false});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: loading ? null : onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: active ? color.withOpacity(0.12) : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: active ? color : Colors.transparent),
+  Widget build(BuildContext context) {
+    final isFilled = filled || active;
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isFilled ? color.withOpacity(active ? 1.0 : 0.75) : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isFilled ? color : const Color(0xFFDDDDDD),
+          ),
+        ),
+        child: Text(label, style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isFilled ? Colors.white : Colors.black54)),
       ),
-      child: Text(label, style: TextStyle(fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: active ? color : Colors.black54)),
-    ),
-  );
+    );
+  }
 }

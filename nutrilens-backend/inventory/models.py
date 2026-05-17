@@ -147,11 +147,42 @@ class UserProduct(models.Model):
     def update_status(self):
         if self.status == 'approved' or self.status == 'rejected':
             return
+        previous = self.status
         if self.flag_count >= self.FLAG_THRESHOLD:
             self.status = 'pending'
         elif self.confirmation_count >= self.COMMUNITY_VERIFY_THRESHOLD:
             self.status = 'community_verified'
+        else:
+            self.status = 'pending'
         self.save(update_fields=['status'])
+        if self.status == 'community_verified' and previous != 'community_verified':
+            self._notify_staff()
+
+    def _notify_staff(self):
+        from django.contrib.auth.models import User
+        from django.core.mail import send_mail
+        staff_emails = list(
+            User.objects.filter(is_staff=True, email__isnull=False)
+            .exclude(email='')
+            .values_list('email', flat=True)
+        )
+        if not staff_emails:
+            return
+        try:
+            send_mail(
+                subject=f'[NutriLens] Product ready for review: {self.name}',
+                message=(
+                    f'The product "{self.name}" (submitted by {self.user.username}) '
+                    f'has reached {self.COMMUNITY_VERIFY_THRESHOLD} community confirmations '
+                    f'and is now awaiting your approval.\n\n'
+                    f'Log in to the admin panel to approve or reject it.'
+                ),
+                from_email=None,
+                recipient_list=staff_emails,
+                fail_silently=True,
+            )
+        except Exception:
+            pass
 
 
 class UserProductVote(models.Model):

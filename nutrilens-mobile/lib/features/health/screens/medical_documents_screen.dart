@@ -8,6 +8,7 @@ import '../../../core/widgets/app_dialogs.dart';
 import '../providers/health_provider.dart';
 import '../models/medical_document_model.dart';
 import '../widgets/medical_disclaimer.dart';
+import 'document_analysis_screen.dart';
 
 class MedicalDocumentsScreen extends ConsumerStatefulWidget {
   const MedicalDocumentsScreen({super.key});
@@ -231,7 +232,7 @@ class _MedicalDocumentsScreenState
                             ),
                           ),
                           child: InkWell(
-                            onTap: () => _showEditSheet(context, filtered[i]),
+                            onTap: () => _showDocumentOptions(context, filtered[i]),
                             borderRadius: BorderRadius.circular(16),
                             child: _DocumentCard(doc: filtered[i]),
                           ),
@@ -282,11 +283,88 @@ class _MedicalDocumentsScreenState
     );
   }
 
+  void _showDocumentOptions(BuildContext context, MedicalDocument doc) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            if (doc.analysis != null)
+              ListTile(
+                leading: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.smart_toy_outlined, color: primaryColor, size: 18),
+                ),
+                title: const Text('View AI Analysis',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Biomarkers, findings & recommendations'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => DocumentAnalysisScreen(document: doc),
+                  ));
+                },
+              ),
+            ListTile(
+              leading: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.edit_outlined, color: Colors.black54, size: 18),
+              ),
+              title: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Update title, type or notes'),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditSheet(context, doc);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 18),
+              ),
+              title: Text('Delete', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red.shade400)),
+              subtitle: const Text('Remove this document permanently'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _confirmDelete(context, doc);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showEditSheet(BuildContext context, MedicalDocument doc) {
     final titleController = TextEditingController(text: doc.title);
     final notesController = TextEditingController(text: doc.notes);
+    String selectedType = doc.documentType;
     bool isSaving = false;
     String? errorMessage;
+
+    const types = ['blood_test', 'prescription', 'report', 'other'];
 
     showModalBottomSheet(
       context: context,
@@ -319,7 +397,33 @@ class _MedicalDocumentsScreenState
                 decoration: _inputDecoration('Title'),
                 textCapitalization: TextCapitalization.sentences,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              const Text('Document Type',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: types.map((type) {
+                  final selected = selectedType == type;
+                  return GestureDetector(
+                    onTap: () => setModalState(() => selectedType = type),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected ? primaryColor : const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(_typeLabel(type),
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: selected ? Colors.white : const Color(0xFF1A1A1A))),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: notesController,
                 decoration: _inputDecoration('Notes (optional)'),
@@ -345,81 +449,47 @@ class _MedicalDocumentsScreenState
                 ),
               ],
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  SizedBox(
-                    height: 50,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.red),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      onPressed: isSaving ? null : () async {
-                        final confirmed = await AppDialogs.warning(
-                          ctx,
-                          title: 'Delete Document',
-                          message: 'Delete "${doc.title}"? This cannot be undone.',
-                          confirmLabel: 'Delete',
-                        );
-                        if (confirmed != true) return;
-                        try {
-                          await ref
-                              .read(medicalDocumentsProvider.notifier)
-                              .deleteDocument(doc.id);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        } catch (e) {
-                          setModalState(() => errorMessage = e.toString());
-                        }
-                      },
-                      child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                    ),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final title = titleController.text.trim();
+                          if (title.isEmpty) return;
+                          setModalState(() { isSaving = true; errorMessage = null; });
+                          try {
+                            await ref
+                                .read(medicalDocumentsProvider.notifier)
+                                .updateDocument(doc.id,
+                                    title: title,
+                                    notes: notesController.text.trim(),
+                                    documentType: selectedType);
+                            if (context.mounted) Navigator.pop(ctx);
+                          } catch (e) {
+                            setModalState(() {
+                              isSaving = false;
+                              errorMessage = e.toString();
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                final title = titleController.text.trim();
-                                if (title.isEmpty) return;
-                                setModalState(() { isSaving = true; errorMessage = null; });
-                                try {
-                                  await ref
-                                      .read(medicalDocumentsProvider.notifier)
-                                      .updateDocument(doc.id,
-                                          title: title,
-                                          notes: notesController.text.trim());
-                                  if (context.mounted) Navigator.pop(ctx);
-                                } catch (e) {
-                                  setModalState(() {
-                                    isSaving = false;
-                                    errorMessage = e.toString();
-                                  });
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          elevation: 0,
-                        ),
-                        child: isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : const Text('Save',
-                                style: TextStyle(
-                                    color: Colors.white, fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ),
-                ],
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Save',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
               ),
             ],
           ),
@@ -920,13 +990,28 @@ class _DocumentCard extends StatelessWidget {
                             fontSize: 11, color: Colors.grey)),
                   ],
                 ),
-                if (doc.notes.isNotEmpty) ...[
+                if (doc.notes.isNotEmpty || doc.analysis != null) ...[
                   const SizedBox(height: 4),
-                  Text(doc.notes,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.grey)),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (doc.notes.isNotEmpty)
+                        Text(doc.notes,
+                            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      if (doc.analysis != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.smart_toy_outlined, size: 11, color: primaryColor),
+                            SizedBox(width: 4),
+                            Text('AI analyzed',
+                                style: TextStyle(fontSize: 11, color: primaryColor, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                    ],
+                  ),
                 ],
               ],
             ),

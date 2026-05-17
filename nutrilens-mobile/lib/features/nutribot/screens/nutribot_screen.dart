@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/nutribot_service.dart';
 import '../../scanner/models/product_model.dart';
+import '../../nutrition/services/food_intake_service.dart';
+import '../../nutrition/providers/food_intake_provider.dart';
 
-class NutriBotScreen extends StatefulWidget {
+class NutriBotScreen extends ConsumerStatefulWidget {
   final ProductModel? product;
   const NutriBotScreen({super.key, this.product});
 
   @override
-  State<NutriBotScreen> createState() => _NutriBotScreenState();
+  ConsumerState<NutriBotScreen> createState() => _NutriBotScreenState();
 }
 
-class _NutriBotScreenState extends State<NutriBotScreen> {
+class _NutriBotScreenState extends ConsumerState<NutriBotScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
 
   final _service = NutriBotService();
@@ -19,6 +23,8 @@ class _NutriBotScreenState extends State<NutriBotScreen> {
   final _scrollCtrl = ScrollController();
   bool _loading = false;
   String? _error;
+  // NL-46: track feedback per message index (true=liked, false=disliked)
+  final Map<int, bool> _feedback = {};
 
   @override
   void initState() {
@@ -206,6 +212,7 @@ class _NutriBotScreenState extends State<NutriBotScreen> {
 
   Widget _buildBubble(NutriBotMessage msg) {
     final isUser = msg.role == 'user';
+    final idx = _messages.indexOf(msg);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -224,34 +231,260 @@ class _NutriBotScreenState extends State<NutriBotScreen> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isUser ? primaryColor : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isUser ? 16 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 16),
+            child: Column(
+              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isUser ? primaryColor : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isUser ? 16 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: Text(
+                    msg.content,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isUser ? Colors.white : const Color(0xFF1A1A1A),
+                      height: 1.4,
+                    ),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+                // NL-46: feedback buttons for assistant messages
+                if (!isUser && idx >= 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _FeedbackButton(
+                        icon: Icons.thumb_up_outlined,
+                        activeIcon: Icons.thumb_up_rounded,
+                        active: _feedback[idx] == true,
+                        onTap: () => _giveFeedback(idx, true),
+                      ),
+                      const SizedBox(width: 4),
+                      _FeedbackButton(
+                        icon: Icons.thumb_down_outlined,
+                        activeIcon: Icons.thumb_down_rounded,
+                        active: _feedback[idx] == false,
+                        onTap: () => _giveFeedback(idx, false),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showLogMealSheet(context, msg.content),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_circle_outline, size: 13, color: primaryColor),
+                              SizedBox(width: 4),
+                              Text('Log meal', style: TextStyle(
+                                  fontSize: 11, fontWeight: FontWeight.w600, color: primaryColor)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
-              child: Text(
-                msg.content,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isUser ? Colors.white : const Color(0xFF1A1A1A),
-                  height: 1.4,
-                ),
-              ),
+              ],
             ),
           ),
           if (isUser) const SizedBox(width: 8),
         ],
       ),
     );
+  }
+
+  void _showLogMealSheet(BuildContext context, String botReply) {
+    final nameCtrl = TextEditingController();
+    final calCtrl = TextEditingController();
+    final proteinCtrl = TextEditingController();
+    final carbsCtrl = TextEditingController();
+    final fatCtrl = TextEditingController();
+    String mealType = _defaultMealType();
+    bool saving = false;
+    String? error;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 36, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              const Text('Log meal from suggestion',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              const Text('Edit the details before logging to your journal.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+
+              // Meal name
+              _BotField(label: 'Meal name *', controller: nameCtrl,
+                  hint: 'e.g. Grilled salmon with vegetables'),
+              const SizedBox(height: 10),
+
+              // Meal type
+              const Text('Meal type',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: ['breakfast', 'lunch', 'dinner', 'snack'].map((t) {
+                  final selected = mealType == t;
+                  return GestureDetector(
+                    onTap: () => setSheet(() => mealType = t),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: selected ? primaryColor : const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(t[0].toUpperCase() + t.substring(1),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                              color: selected ? Colors.white : Colors.black54)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+
+              // Calories + macros
+              Row(children: [
+                Expanded(child: _BotField(label: 'Calories (kcal) *', controller: calCtrl, numeric: true, hint: '0')),
+                const SizedBox(width: 10),
+                Expanded(child: _BotField(label: 'Protein (g)', controller: proteinCtrl, numeric: true, hint: '0')),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: _BotField(label: 'Carbs (g)', controller: carbsCtrl, numeric: true, hint: '0')),
+                const SizedBox(width: 10),
+                Expanded(child: _BotField(label: 'Fat (g)', controller: fatCtrl, numeric: true, hint: '0')),
+              ]),
+
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ),
+              ],
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: saving ? null : () async {
+                    final name = nameCtrl.text.trim();
+                    final cal = double.tryParse(calCtrl.text.trim());
+                    if (name.isEmpty) {
+                      setSheet(() => error = 'Please enter a meal name.');
+                      return;
+                    }
+                    if (cal == null || cal <= 0) {
+                      setSheet(() => error = 'Please enter valid calories.');
+                      return;
+                    }
+                    setSheet(() { saving = true; error = null; });
+                    try {
+                      await FoodIntakeService().logIntake({
+                        'name': name,
+                        'source_type': 'manual',
+                        'quantity': 100,
+                        'unit': 'g',
+                        'calories': cal,
+                        if (proteinCtrl.text.isNotEmpty) 'protein': double.tryParse(proteinCtrl.text),
+                        if (carbsCtrl.text.isNotEmpty) 'carbs': double.tryParse(carbsCtrl.text),
+                        if (fatCtrl.text.isNotEmpty) 'fat': double.tryParse(fatCtrl.text),
+                        'meal_type': mealType,
+                        'consumed_at': DateTime.now().toIso8601String(),
+                      });
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                        // Refresh home summary immediately
+                        ref.read(dailySummaryProvider.notifier).fetch();
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('$name logged to your journal!'),
+                          backgroundColor: const Color(0xFF27AE60),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          margin: const EdgeInsets.all(16),
+                        ));
+                      }
+                    } catch (e) {
+                      setSheet(() { saving = false; error = e.toString(); });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Log to journal', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _defaultMealType() {
+    final h = DateTime.now().hour;
+    if (h < 10) return 'breakfast';
+    if (h < 15) return 'lunch';
+    if (h < 21) return 'dinner';
+    return 'snack';
+  }
+
+  void _giveFeedback(int idx, bool liked) {
+    setState(() => _feedback[idx] = liked);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(liked ? 'Glad that helped!' : 'Thanks for the feedback — I\'ll try to do better.'),
+        backgroundColor: liked ? const Color(0xFF27AE60) : Colors.grey.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ));
   }
 
   Widget _buildTypingIndicator() {
@@ -377,4 +610,61 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
       },
     );
   }
+}
+
+class _BotField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final bool numeric;
+  const _BotField({required this.label, required this.controller,
+      this.hint = '', this.numeric = false});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+      const SizedBox(height: 5),
+      TextField(
+        controller: controller,
+        keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        inputFormatters: numeric ? [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))] : [],
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+          filled: true,
+          fillColor: const Color(0xFFF5F5F5),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
+    ],
+  );
+}
+
+class _FeedbackButton extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final bool active;
+  final VoidCallback onTap;
+  const _FeedbackButton({required this.icon, required this.activeIcon,
+      required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 28, height: 28,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFEC6F2D).withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        active ? activeIcon : icon,
+        size: 16,
+        color: active ? const Color(0xFFEC6F2D) : Colors.grey.shade400,
+      ),
+    ),
+  );
 }

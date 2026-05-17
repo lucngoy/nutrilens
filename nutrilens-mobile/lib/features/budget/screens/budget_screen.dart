@@ -469,6 +469,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   // ── Sheets ────────────────────────────────────────────────────────────────
 
   void _showAddSpendingSheet(MonthlyBudget budget) {
+    final symbol = ref.read(currencyProvider.notifier).symbol;
     final descCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     String selectedCategory = 'groceries';
@@ -513,7 +514,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   controller: amountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-                  decoration: _inputDecoration('Amount (\$)'),
+                  decoration: _inputDecoration('Amount ($symbol)'),
                 ),
                 const SizedBox(height: 12),
                 _CategoryPicker(
@@ -561,6 +562,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 
   void _showEditEntrySheet(SpendingEntry entry) {
+    final symbol = ref.read(currencyProvider.notifier).symbol;
     final descCtrl = TextEditingController(text: entry.description);
     final amountCtrl = TextEditingController(text: entry.amount.toStringAsFixed(2));
     String selectedCategory = entry.category;
@@ -608,7 +610,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   controller: amountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-                  decoration: _inputDecoration('Amount (\$)'),
+                  decoration: _inputDecoration('Amount ($symbol)'),
                 ),
                 const SizedBox(height: 12),
                 _CategoryPicker(

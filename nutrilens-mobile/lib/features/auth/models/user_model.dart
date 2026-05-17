@@ -51,12 +51,14 @@ class UserModel {
   final int id;
   final String username;
   final String email;
+  final bool isStaff;
   final UserProfile profile;
 
   UserModel({
     required this.id,
     required this.username,
     required this.email,
+    this.isStaff = false,
     required this.profile,
   });
 
@@ -65,6 +67,7 @@ class UserModel {
       id: json['id'],
       username: json['username'],
       email: json['email'],
+      isStaff: json['is_staff'] ?? false,
       profile: UserProfile.fromJson(json['profile']),
     );
   }

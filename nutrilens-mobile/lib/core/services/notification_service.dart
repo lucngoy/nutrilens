@@ -123,13 +123,23 @@ class NotificationService {
     return scheduled;
   }
 
+  static Future<void> cancel(int id) async {
+    await _plugin.cancel(id);
+  }
+
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
+  }
+
+  static Future<bool> _isPrefEnabled(String key) async {
+    final val = await _storage.read(key: key);
+    return val != 'false';
   }
 
   /// Sends a budget pace alert — throttled to once per day.
   static Future<void> checkBudgetPace(MonthlyBudget budget) async {
     if (budget.paceStatus == 'on_track') return;
+    if (!await _isPrefEnabled('notif_budget_alerts')) return;
 
     const key = 'budget_pace_alert';
     final lastStr = await _storage.read(key: key);
@@ -156,6 +166,7 @@ class NotificationService {
   /// Call this after the user logs a food entry.
   static Future<void> checkIntakeAdherence(DailySummary summary) async {
     if (summary.status == 'on_track') return;
+    if (!await _isPrefEnabled('notif_meal_reminders')) return;
 
     // Throttle: skip if already notified in the last 3 hours
     final lastStr = await _storage.read(key: _kLastIntakeAlertKey);
@@ -200,6 +211,7 @@ class NotificationService {
   /// Sends a missed-meal reminder — throttled once per meal per day.
   /// Call this when loading today's food entries.
   static Future<void> checkMissedMeals(List<dynamic> todayEntries) async {
+    if (!await _isPrefEnabled('notif_meal_reminders')) return;
     final now = DateTime.now();
     final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
@@ -233,6 +245,7 @@ class NotificationService {
 
   static Future<void> checkInventoryAlerts(
       List<InventoryItem> items) async {
+    if (!await _isPrefEnabled('notif_inventory_alerts')) return;
     final lowStock = items.where((i) => i.isLowStock).toList();
     final expiringSoon = items.where((i) {
       if (i.expirationDate == null) return false;

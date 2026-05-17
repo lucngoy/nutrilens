@@ -14,6 +14,9 @@ class UserProductModel {
   final double? fat;
   final double? sugar;
   final double? salt;
+  final String status;
+  final int confirmationCount;
+  final int flagCount;
 
   UserProductModel({
     this.id,
@@ -29,6 +32,9 @@ class UserProductModel {
     this.fat,
     this.sugar,
     this.salt,
+    this.status = 'pending',
+    this.confirmationCount = 0,
+    this.flagCount = 0,
   });
 
   factory UserProductModel.fromJson(Map<String, dynamic> json) {
@@ -46,6 +52,9 @@ class UserProductModel {
       fat: json['fat']?.toDouble(),
       sugar: json['sugar']?.toDouble(),
       salt: json['salt']?.toDouble(),
+      status: json['status'] ?? 'pending',
+      confirmationCount: json['confirmation_count'] ?? 0,
+      flagCount: json['flag_count'] ?? 0,
     );
   }
 

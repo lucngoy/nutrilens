@@ -29,6 +29,7 @@ class AnalysisResult {
   final List<String> recommendations;
   final List<String> reasons;
   final int score;
+  final bool labEnriched;
 
   const AnalysisResult({
     required this.warnings,
@@ -36,6 +37,7 @@ class AnalysisResult {
     required this.recommendations,
     required this.reasons,
     required this.score,
+    this.labEnriched = false,
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -54,6 +56,7 @@ class AnalysisResult {
           .map((e) => e.toString())
           .toList(),
       score: json['score'] ?? 100,
+      labEnriched: json['lab_enriched'] == true,
     );
   }
 

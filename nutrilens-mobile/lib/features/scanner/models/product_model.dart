@@ -10,6 +10,7 @@ class ProductModel {
   final String source; // 'openfoodfacts' | 'user'
   final int? userProductId;
   final String? userProductStatus;
+  final bool? userProductIsOwner;
 
   ProductModel({
     required this.barcode,
@@ -23,6 +24,7 @@ class ProductModel {
     this.source = 'openfoodfacts',
     this.userProductId,
     this.userProductStatus,
+    this.userProductIsOwner,
   });
 
   factory ProductModel.fromOpenFoodFacts(Map<String, dynamic> json) {
@@ -38,6 +40,9 @@ class ProductModel {
       imageUrl: product['image_url'],
       nutriscore: product['nutriscore_grade'],
       source: json['source'] == 'user' ? 'user' : 'openfoodfacts',
+      userProductId: json['user_product_id'],
+      userProductStatus: json['user_product_status'],
+      userProductIsOwner: json['user_product_is_owner'] == true,
       allergens: allergensRaw
           .map((a) => a.toString().replaceAll('en:', ''))
           .toList(),

@@ -105,11 +105,14 @@ class HealthService {
     }
   }
 
-  Future<MedicalDocument> updateDocument(int id, {required String title, required String notes}) async {
+  Future<MedicalDocument> updateDocument(int id,
+      {required String title, required String notes, String? documentType}) async {
     try {
+      final body = <String, dynamic>{'title': title, 'notes': notes};
+      if (documentType != null) body['document_type'] = documentType;
       final response = await _dio.patch(
         '/users/health/documents/$id/',
-        data: {'title': title, 'notes': notes},
+        data: body,
       );
       return MedicalDocument.fromJson(response.data);
     } on DioException catch (e) {

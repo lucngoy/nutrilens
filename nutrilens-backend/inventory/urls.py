@@ -10,6 +10,9 @@ from .views import (
     UserProductListCreateView,
     UserProductDetailView,
     UserProductVoteView,
+    AdminProductReviewListView,
+    AdminProductReviewActionView,
+    AdminPendingCountView,
 )
 
 urlpatterns = [
@@ -23,4 +26,7 @@ urlpatterns = [
     path('user-products/', UserProductListCreateView.as_view(), name='user-product-list'),
     path('user-products/<int:pk>/', UserProductDetailView.as_view(), name='user-product-detail'),
     path('user-products/<int:pk>/vote/', UserProductVoteView.as_view(), name='user-product-vote'),
+    path('admin/products/', AdminProductReviewListView.as_view(), name='admin-product-list'),
+    path('admin/products/<int:pk>/review/', AdminProductReviewActionView.as_view(), name='admin-product-review'),
+    path('admin/products/count/', AdminPendingCountView.as_view(), name='admin-product-count'),
 ]

@@ -24,6 +24,9 @@ import '../../features/health/screens/health_progress_screen.dart';
 import '../../features/budget/screens/budget_screen.dart';
 import '../../features/auth/screens/profile_setup_screen.dart';
 import '../../features/nutribot/screens/nutribot_screen.dart';
+import '../../features/scanner/screens/my_contributions_screen.dart';
+import '../../features/admin/screens/admin_review_screen.dart';
+import '../../features/notifications/screens/notifications_screen.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
@@ -128,6 +131,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/nutribot',
           builder: (context, state) => const NutriBotScreen()),
+      GoRoute(
+          path: '/my-contributions',
+          builder: (context, state) => const MyContributionsScreen()),
+      GoRoute(
+          path: '/admin/products',
+          builder: (context, state) => const AdminReviewScreen()),
+      GoRoute(
+          path: '/notifications-settings',
+          builder: (context, state) => const NotificationsScreen()),
     ],
   );
 });

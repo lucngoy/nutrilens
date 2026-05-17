@@ -246,6 +246,11 @@ class ProductAnalysisView(APIView):
         highlighted = []
         recommendations = []
 
+        # Latest lab results — used to sharpen thresholds (Layer 2 enrichment)
+        lab = DocumentAnalysis.objects.filter(
+            document__user=request.user
+        ).order_by('-analyzed_at').first()
+
         # ── NL-23: Nutritional comparison vs health profile ──────────────────
         sugar = nutrition.get('sugar')
         salt = nutrition.get('salt')
@@ -261,6 +266,12 @@ class ProductAnalysisView(APIView):
             sugar_candidates.append(25.0)
         if profile.goal in ('lose_weight', 'eat_healthy'):
             sugar_candidates.append(35.0)
+        # Lab-driven tightening: prediabetic range (HbA1c 5.7-6.4) or borderline glucose
+        if lab:
+            if lab.hba1c is not None and lab.hba1c >= 5.7:
+                sugar_candidates.append(30.0)
+            if lab.blood_glucose is not None and lab.blood_glucose > 6.0:
+                sugar_candidates.append(30.0)
         sugar_limit = min(sugar_candidates)
 
         salt_candidates = [float(profile.salt_limit_target or 5)]
@@ -268,6 +279,9 @@ class ProductAnalysisView(APIView):
             salt_candidates.append(3.0)
         if profile.goal in ('lose_weight', 'eat_healthy'):
             salt_candidates.append(4.0)
+        # Lab-driven tightening: elevated BP from blood test
+        if lab and lab.blood_pressure_systolic is not None and lab.blood_pressure_systolic >= 120:
+            salt_candidates.append(3.5)
         salt_limit = min(salt_candidates)
 
         # Data quality guard
@@ -364,6 +378,23 @@ class ProductAnalysisView(APIView):
                                   'severity': 'warning',
                                   'detail': f'High saturated fat ({sat_fat_f:.1f}g/100{product_unit}) — limit'})
                 recommendations.append('Prefer unsaturated fat alternatives.')
+
+        # ── Lab-driven cholesterol / sat-fat enrichment ──────────────────────
+        if lab and sat_fat is not None:
+            sat_fat_f = float(sat_fat)
+            high_chol = (
+                (lab.cholesterol_total is not None and lab.cholesterol_total > 5.2) or
+                (lab.cholesterol_ldl is not None and lab.cholesterol_ldl > 3.4) or
+                (lab.triglycerides is not None and lab.triglycerides > 1.7)
+            )
+            if high_chol and sat_fat_f > 3 and 'high_sat_fat' not in {w['code'] for w in warnings}:
+                warnings.append({
+                    'code': 'lab_sat_fat',
+                    'label': 'Elevated cholesterol risk',
+                    'severity': 'warning',
+                    'detail': f'Your lab results show elevated lipids — limit saturated fat ({sat_fat_f:.1f}g/100{product_unit})',
+                })
+                recommendations.append('Limit saturated fat — your blood test shows elevated lipid levels.')
 
         # ── Allergens vs health conditions ───────────────────────────────────
         condition_map = {
@@ -560,6 +591,7 @@ class ProductAnalysisView(APIView):
             'recommendations': list(dict.fromkeys(recommendations)),
             'score': score,
             'reasons': reasons,
+            'lab_enriched': lab is not None,
         })
 
 
@@ -1106,7 +1138,7 @@ class NutriBotView(APIView):
             "You are NutriBot, an expert nutrition assistant inside the NutriLens app.",
             "Answer questions about food, nutrition, health, and diet. Be concise and practical.",
             "",
-            f"User profile:",
+            "User profile:",
             f"- Goal: {profile.goal}",
             f"- Activity: {profile.activity_frequency} days/week, {profile.activity_intensity} intensity",
             f"- Lifestyle: {profile.lifestyle}",
@@ -1115,7 +1147,7 @@ class NutriBotView(APIView):
         if profile.daily_calorie_target:
             lines.append(f"- Daily calorie target: {profile.daily_calorie_target} kcal")
         if profile.bmi:
-            lines.append(f"- BMI: {profile.bmi} ({profile.bmiCategory if hasattr(profile, 'bmiCategory') else ''})")
+            lines.append(f"- BMI: {profile.bmi}")
 
         conditions = []
         if profile.is_diabetic:
@@ -1137,6 +1169,41 @@ class NutriBotView(APIView):
             lines.append(f"- Health conditions/diet: {', '.join(conditions)}")
         if profile.allergies:
             lines.append(f"- Allergies: {profile.allergies}")
+
+        # Inject latest lab results from medical documents
+        latest = DocumentAnalysis.objects.filter(
+            document__user=user
+        ).order_by('-analyzed_at').first()
+        if latest:
+            lab_lines = []
+            if latest.blood_glucose is not None:
+                lab_lines.append(f"blood glucose {latest.blood_glucose} mmol/L")
+            if latest.hba1c is not None:
+                lab_lines.append(f"HbA1c {latest.hba1c}%")
+            if latest.cholesterol_total is not None:
+                lab_lines.append(f"total cholesterol {latest.cholesterol_total} mmol/L")
+            if latest.cholesterol_ldl is not None:
+                lab_lines.append(f"LDL {latest.cholesterol_ldl} mmol/L")
+            if latest.cholesterol_hdl is not None:
+                lab_lines.append(f"HDL {latest.cholesterol_hdl} mmol/L")
+            if latest.triglycerides is not None:
+                lab_lines.append(f"triglycerides {latest.triglycerides} mmol/L")
+            if latest.blood_pressure_systolic is not None:
+                lab_lines.append(f"BP {latest.blood_pressure_systolic}/{latest.blood_pressure_diastolic} mmHg")
+            if latest.vitamin_d is not None:
+                lab_lines.append(f"vitamin D {latest.vitamin_d} ng/mL")
+            if latest.vitamin_b12 is not None:
+                lab_lines.append(f"vitamin B12 {latest.vitamin_b12} pg/mL")
+            if latest.ferritin is not None:
+                lab_lines.append(f"ferritin {latest.ferritin} ng/mL")
+            if lab_lines:
+                lines.append("")
+                lines.append("Latest lab results (from uploaded medical document):")
+                for l in lab_lines:
+                    lines.append(f"- {l}")
+                if latest.key_findings:
+                    lines.append(f"- Key findings: {'; '.join(latest.key_findings[:3])}")
+                lines.append("Use these values to give more precise, personalised dietary advice.")
 
         lines += [
             "",

@@ -103,17 +103,39 @@ class ProductLookupView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, barcode):
-        # Check user-contributed products first
-        try:
-            up = UserProduct.objects.get(user=request.user, barcode=barcode)
+        # Priority 1: own product (any non-rejected status)
+        up = UserProduct.objects.filter(
+            user=request.user, barcode=barcode
+        ).exclude(status='rejected').first()
+
+        # Priority 2: any non-rejected contribution from any user
+        # Prefer approved > community_verified > pending so others can vote
+        if up is None:
+            from django.db.models import Case, IntegerField, Value, When
+            up = UserProduct.objects.filter(
+                barcode=barcode
+            ).exclude(status='rejected').annotate(
+                status_order=Case(
+                    When(status='approved', then=Value(0)),
+                    When(status='community_verified', then=Value(1)),
+                    default=Value(2),
+                    output_field=IntegerField(),
+                )
+            ).order_by('status_order', '-confirmation_count').first()
+
+        if up is not None:
+            image_url = request.build_absolute_uri(up.image.url) if up.image else None
             return JsonResponse({
                 'status': 1,
                 'source': 'user',
+                'user_product_id': up.id,
+                'user_product_status': up.status,
+                'user_product_is_owner': up.user == request.user,
                 'product': {
                     'code': up.barcode,
                     'product_name': up.name,
                     'brands': up.brand,
-                    'image_url': None,
+                    'image_url': image_url,
                     'nutriscore_grade': None,
                     'allergens_tags': [],
                     'ingredients': [],
@@ -129,8 +151,6 @@ class ProductLookupView(APIView):
                     },
                 }
             })
-        except UserProduct.DoesNotExist:
-            pass
 
         # Fall back to OpenFoodFacts
         try:
@@ -203,6 +223,69 @@ class UserProductVoteView(APIView):
             'your_vote': vote_type,
         })
         
+
+class AdminProductReviewListView(APIView):
+    """Staff-only: list products pending admin review."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        status_filter = request.query_params.get('status', 'pending')
+        qs = UserProduct.objects.filter(status=status_filter).select_related('user')
+        data = []
+        for p in qs:
+            data.append({
+                'id': p.id,
+                'name': p.name,
+                'brand': p.brand,
+                'barcode': p.barcode,
+                'image': request.build_absolute_uri(p.image.url) if p.image else None,
+                'calories': p.calories,
+                'protein': p.protein,
+                'carbohydrates': p.carbohydrates,
+                'fat': p.fat,
+                'sugar': p.sugar,
+                'salt': p.salt,
+                'serving_size': p.serving_size,
+                'serving_unit': p.serving_unit,
+                'status': p.status,
+                'confirmation_count': p.confirmation_count,
+                'flag_count': p.flag_count,
+                'submitted_by': p.user.username,
+                'created_at': p.created_at.isoformat(),
+            })
+        return Response(data)
+
+
+class AdminPendingCountView(APIView):
+    """Staff-only: count of products needing review (pending + community_verified)."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        count = UserProduct.objects.filter(
+            status__in=['pending', 'community_verified']
+        ).count()
+        community = UserProduct.objects.filter(status='community_verified').count()
+        return Response({'total': count, 'community_verified': community})
+
+
+class AdminProductReviewActionView(APIView):
+    """Staff-only: approve or reject a single product."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, pk):
+        action = request.data.get('action')
+        if action not in ('approve', 'reject', 'pending'):
+            return Response({'error': 'action must be approve, reject, or pending'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            product = UserProduct.objects.get(pk=pk)
+        except UserProduct.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        product.status = {'approve': 'approved', 'reject': 'rejected', 'pending': 'pending'}[action]
+        product.save(update_fields=['status'])
+        return Response({'id': product.id, 'status': product.status})
+
 
 class ScanHistoryListView(generics.ListAPIView):
     serializer_class = ScanHistorySerializer

@@ -19,6 +19,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
   bool _uploadingAvatar = false;
   File? _pendingAvatar;
+  int _pendingReviewCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_fetchPendingCount);
+  }
+
+  Future<void> _fetchPendingCount() async {
+    try {
+      final resp = await ApiClient.instance.get('/inventory/admin/products/count/');
+      if (mounted) {
+        setState(() => _pendingReviewCount = resp.data['community_verified'] ?? 0);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -340,12 +356,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     description: 'Lab results, prescriptions, reports',
                     onTap: () => context.push('/medical-documents'),
                   ),
+                  if (user.isStaff)
+                    _MenuItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      label: 'Product Moderation',
+                      description: 'Approve or reject community products',
+                      onTap: () async {
+                        await context.push('/admin/products');
+                        _fetchPendingCount();
+                      },
+                      badge: _pendingReviewCount > 0 ? _pendingReviewCount : null,
+                    ),
+                  _MenuItem(
+                    icon: Icons.volunteer_activism_outlined,
+                    label: 'My Contributions',
+                    description: 'Products you added to the community',
+                    onTap: () => context.push('/my-contributions'),
+                  ),
                   _MenuItem(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
-                    description: 'Push notifications, reminders',
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon!'))),
+                    description: 'Meal reminders, budget & health alerts',
+                    onTap: () => context.push('/notifications-settings'),
                   ),
                   _MenuItem(
                     icon: Icons.lock_outline,
@@ -817,6 +849,7 @@ class _MenuItem extends StatelessWidget {
   final String description;
   final VoidCallback onTap;
   final bool isLast;
+  final int? badge;
 
   const _MenuItem({
     required this.icon,
@@ -824,6 +857,7 @@ class _MenuItem extends StatelessWidget {
     required this.description,
     required this.onTap,
     this.isLast = false,
+    this.badge,
   });
 
   static const primaryColor = Color(0xFFEC6F2D);
@@ -864,6 +898,20 @@ class _MenuItem extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (badge != null)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text('$badge',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                  ),
                 const Icon(Icons.chevron_right,
                     color: Colors.grey, size: 20),
               ],

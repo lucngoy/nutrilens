@@ -7,7 +7,13 @@ import '../services/user_product_service.dart';
 
 class AddUserProductScreen extends StatefulWidget {
   final String barcode;
-  const AddUserProductScreen({super.key, required this.barcode});
+  final UserProductModel? product; // non-null = edit mode
+
+  const AddUserProductScreen({
+    super.key,
+    this.barcode = '',
+    this.product,
+  });
 
   @override
   State<AddUserProductScreen> createState() => _AddUserProductScreenState();
@@ -16,21 +22,30 @@ class AddUserProductScreen extends StatefulWidget {
 class _AddUserProductScreenState extends State<AddUserProductScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
 
+  bool get _isEdit => widget.product != null;
+
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   String? _error;
   File? _imageFile;
 
-  final _nameCtrl = TextEditingController();
-  final _brandCtrl = TextEditingController();
-  final _servingSizeCtrl = TextEditingController(text: '100');
-  String _servingUnit = 'g';
-  final _caloriesCtrl = TextEditingController();
-  final _proteinCtrl = TextEditingController();
-  final _carbsCtrl = TextEditingController();
-  final _fatCtrl = TextEditingController();
-  final _sugarCtrl = TextEditingController();
-  final _saltCtrl = TextEditingController();
+  late final _nameCtrl = TextEditingController(text: widget.product?.name ?? '');
+  late final _brandCtrl = TextEditingController(text: widget.product?.brand ?? '');
+  late final _servingSizeCtrl = TextEditingController(
+      text: widget.product?.servingSize.toString() ?? '100');
+  late String _servingUnit = widget.product?.servingUnit ?? 'g';
+  late final _caloriesCtrl = TextEditingController(
+      text: widget.product?.calories?.toString() ?? '');
+  late final _proteinCtrl = TextEditingController(
+      text: widget.product?.protein?.toString() ?? '');
+  late final _carbsCtrl = TextEditingController(
+      text: widget.product?.carbohydrates?.toString() ?? '');
+  late final _fatCtrl = TextEditingController(
+      text: widget.product?.fat?.toString() ?? '');
+  late final _sugarCtrl = TextEditingController(
+      text: widget.product?.sugar?.toString() ?? '');
+  late final _saltCtrl = TextEditingController(
+      text: widget.product?.salt?.toString() ?? '');
 
   @override
   void dispose() {
@@ -81,13 +96,29 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
     );
   }
 
+  Widget _emptyPhoto() => Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    Icon(Icons.add_a_photo_outlined, size: 36, color: primaryColor.withOpacity(0.6)),
+    const SizedBox(height: 8),
+    const Text('Add product photo',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black38)),
+    const SizedBox(height: 4),
+    const Text('Optional — helps identify the product',
+        style: TextStyle(fontSize: 11, color: Colors.black26)),
+  ]);
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _saving = true; _error = null; });
 
     try {
-      final product = UserProductModel(
-        barcode: widget.barcode,
+      // Evict old image from Flutter's network cache so all widgets show the new one
+      if (_isEdit && _imageFile != null && widget.product?.imageUrl != null) {
+        NetworkImage(widget.product!.imageUrl!).evict();
+      }
+
+      final data = UserProductModel(
+        id: widget.product?.id,
+        barcode: widget.product?.barcode ?? widget.barcode,
         name: _nameCtrl.text.trim(),
         brand: _brandCtrl.text.trim(),
         servingSize: double.tryParse(_servingSizeCtrl.text) ?? 100,
@@ -99,8 +130,11 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
         sugar: double.tryParse(_sugarCtrl.text),
         salt: double.tryParse(_saltCtrl.text),
       );
-      final saved = await UserProductService().create(product, imagePath: _imageFile?.path);
-      if (mounted) Navigator.pop(context, saved.toProductModel());
+      final svc = UserProductService();
+      final saved = _isEdit
+          ? await svc.update(widget.product!.id!, data, imagePath: _imageFile?.path)
+          : await svc.create(data, imagePath: _imageFile?.path);
+      if (mounted) Navigator.pop(context, saved);
     } catch (e) {
       setState(() { _error = 'Failed to save product. Please try again.'; _saving = false; });
     }
@@ -120,8 +154,8 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
             icon: const Icon(Icons.close, color: Colors.black87),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text('Add product',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.black87)),
+          title: Text(_isEdit ? 'Edit product' : 'Add product',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.black87)),
           centerTitle: true,
         ),
         body: Form(
@@ -139,7 +173,9 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: _imageFile != null ? primaryColor : const Color(0xFFE0E0E0),
+                      color: (_imageFile != null || (widget.product?.imageUrl != null))
+                          ? primaryColor
+                          : const Color(0xFFE0E0E0),
                       width: 1.5,
                     ),
                   ),
@@ -159,23 +195,29 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
                             ),
                           ),
                         ])
-                      : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.add_a_photo_outlined, size: 36,
-                              color: primaryColor.withOpacity(0.6)),
-                          const SizedBox(height: 8),
-                          const Text('Add product photo',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
-                                  color: Colors.black38)),
-                          const SizedBox(height: 4),
-                          const Text('Optional — helps identify the product',
-                              style: TextStyle(fontSize: 11, color: Colors.black26)),
-                        ]),
+                      : (widget.product?.imageUrl != null && widget.product!.imageUrl!.isNotEmpty)
+                          ? Stack(fit: StackFit.expand, children: [
+                              Image.network(widget.product!.imageUrl!, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _emptyPhoto()),
+                              Positioned(
+                                bottom: 8, right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ])
+                          : _emptyPhoto(),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Barcode chip
-              if (widget.barcode.isNotEmpty)
+              // Barcode chip (create mode only)
+              if (!_isEdit && widget.barcode.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   margin: const EdgeInsets.only(bottom: 16),
@@ -280,7 +322,8 @@ class _AddUserProductScreenState extends State<AddUserProductScreen> {
                   child: _saving
                       ? const SizedBox(width: 22, height: 22,
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : const Text('Save product', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      : Text(_isEdit ? 'Save changes' : 'Save product',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(height: 20),

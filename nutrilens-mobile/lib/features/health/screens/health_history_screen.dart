@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/health_provider.dart';
@@ -17,13 +18,18 @@ class HealthHistoryScreen extends ConsumerStatefulWidget {
 
 class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
+  static const _storage = FlutterSecureStorage();
   _ChartMetric _metric = _ChartMetric.weight;
+  bool _healthTrendAlertsEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-        () => ref.read(healthSnapshotsProvider.notifier).fetchSnapshots());
+    Future.microtask(() async {
+      ref.read(healthSnapshotsProvider.notifier).fetchSnapshots();
+      final pref = await _storage.read(key: 'notif_health_trend_alerts');
+      if (mounted) setState(() => _healthTrendAlertsEnabled = pref != 'false');
+    });
   }
 
   @override
@@ -87,9 +93,17 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
                       style: const TextStyle(color: Colors.red))),
               data: (state) {
                 final snapshots = state.snapshots;
+                final alerts = _healthTrendAlertsEnabled
+                    ? _analyzeTrends(snapshots)
+                    : <({String title, String body, Color color, IconData icon})>[];
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    // NL-56: health trend alerts
+                    if (alerts.isNotEmpty) ...[
+                      ...alerts.map((a) => _TrendAlert(alert: a)),
+                      const SizedBox(height: 8),
+                    ],
                     _SummaryCard(
                       weight: healthProfile?.weight,
                       bmi: healthProfile?.bmi,
@@ -129,6 +143,98 @@ class _HealthHistoryScreenState extends ConsumerState<HealthHistoryScreen> {
         ],
       ),
     );
+  }
+
+  List<({String title, String body, Color color, IconData icon})> _analyzeTrends(
+      List<HealthSnapshot> snapshots) {
+    final alerts = <({String title, String body, Color color, IconData icon})>[];
+    if (snapshots.length < 3) return alerts;
+
+    final recent = snapshots.take(5).toList();
+
+    // Only use snapshots from the last 90 days for trend detection
+    final now = DateTime.now();
+    final recentEnough = recent
+        .where((s) => now.difference(s.recordedAt).inDays <= 90)
+        .toList();
+
+    final weights = recentEnough
+        .where((s) => s.weight != null)
+        .map((s) => s.weight!)
+        .toList();
+
+    // Weight gain trend: 3+ consecutive increases, min 0.3kg gain per step
+    if (weights.length >= 3) {
+      int consecutiveGains = 0;
+      for (int i = 0; i < weights.length - 1; i++) {
+        if (weights[i] > weights[i + 1] + 0.3) consecutiveGains++;
+        else break;
+      }
+      if (consecutiveGains >= 2) {
+        final total = (weights.first - weights[consecutiveGains]).toStringAsFixed(1);
+        alerts.add((
+          title: 'Weight gaining trend',
+          body: '+${total}kg over your last ${consecutiveGains + 1} weigh-ins — consider reviewing your diet.',
+          color: const Color(0xFFE67E22),
+          icon: Icons.trending_up_rounded,
+        ));
+      }
+    }
+
+    // Weight loss trend: 3+ consecutive decreases, min 0.3kg loss per step
+    if (weights.length >= 3) {
+      int consecutiveLosses = 0;
+      for (int i = 0; i < weights.length - 1; i++) {
+        if (weights[i + 1] > weights[i] + 0.3) consecutiveLosses++;
+        else break;
+      }
+      if (consecutiveLosses >= 2) {
+        final total = (weights[consecutiveLosses] - weights.first).toStringAsFixed(1);
+        alerts.add((
+          title: 'Significant weight loss',
+          body: '-${total}kg over your last ${consecutiveLosses + 1} weigh-ins — make sure you are eating enough.',
+          color: const Color(0xFF2980B9),
+          icon: Icons.trending_down_rounded,
+        ));
+      }
+    }
+
+    // BMI in unhealthy range (use most recent snapshot regardless of date)
+    final latestBmi = recent.firstWhere((s) => s.bmi != null, orElse: () => recent.first).bmi;
+    if (latestBmi != null) {
+      if (latestBmi >= 30) {
+        alerts.add((
+          title: 'BMI in obese range',
+          body: 'Your BMI is ${latestBmi.toStringAsFixed(1)} — consult a healthcare professional.',
+          color: const Color(0xFFE74C3C),
+          icon: Icons.warning_amber_rounded,
+        ));
+      } else if (latestBmi < 18.5) {
+        alerts.add((
+          title: 'BMI below healthy range',
+          body: 'Your BMI is ${latestBmi.toStringAsFixed(1)} — you may be underweight.',
+          color: const Color(0xFF2980B9),
+          icon: Icons.warning_amber_rounded,
+        ));
+      }
+    }
+
+    // Rapid weight change: >2kg between the two most recent snapshots
+    if (weights.length >= 2) {
+      final diff = (weights[0] - weights[1]).abs();
+      if (diff > 2.0) {
+        final diffStr = diff.toStringAsFixed(1);
+        final dir = weights[0] > weights[1] ? 'gained' : 'lost';
+        alerts.add((
+          title: 'Rapid weight change',
+          body: 'You $dir ${diffStr}kg since your last weigh-in — this may be worth monitoring.',
+          color: const Color(0xFF8E44AD),
+          icon: Icons.speed_rounded,
+        ));
+      }
+    }
+
+    return alerts;
   }
 
   Widget _buildEmpty() {
@@ -636,5 +742,44 @@ class _StatChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TrendAlert extends StatelessWidget {
+  final ({String title, String body, Color color, IconData icon}) alert;
+  const _TrendAlert({required this.alert});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: alert.color.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: alert.color.withOpacity(0.25)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(alert.icon, color: alert.color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(alert.title,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: alert.color)),
+              const SizedBox(height: 2),
+              Text(alert.body,
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.black54, height: 1.4)),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 

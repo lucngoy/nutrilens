@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/inventory/providers/inventory_provider.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/admin_notification_service.dart';
 import '../../scanner/providers/scan_history_provider.dart';
 import '../../scanner/models/scan_history_model.dart';
 import '../../nutrition/providers/food_intake_provider.dart';
@@ -16,16 +17,44 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   static const primaryColor = Color(0xFFEC6F2D);
+  int _pendingReviewCount = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       ref.read(dailySummaryProvider.notifier).fetch();
       ref.read(budgetProvider.notifier).fetch();
+      _checkAdminNotifications();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAdminNotifications();
+    }
+  }
+
+  Future<void> _checkAdminNotifications() async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user?.isStaff != true) return;
+    await AdminNotificationService.checkAndNotify();
+    try {
+      final resp = await ApiClient.instance.get('/inventory/admin/products/count/');
+      final count = (resp.data['community_verified'] as num?)?.toInt() ?? 0;
+      if (mounted) setState(() => _pendingReviewCount = count);
+    } catch (_) {}
   }
 
   @override
@@ -56,30 +85,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          _buildUserAvatar(user?.profile.avatar, user?.username),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Good morning,',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 13)),
-                              Text(user?.username ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ],
+                      GestureDetector(
+                        onTap: () => context.push('/profile'),
+                        child: Row(
+                          children: [
+                            _buildUserAvatar(user?.profile.avatar, user?.username),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Good morning,',
+                                    style: TextStyle(
+                                        color: Colors.white70, fontSize: 13)),
+                                Text(user?.username ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                       GestureDetector(
-                        onTap: () =>
-                            ref.read(authStateProvider.notifier).logout(),
+                        onTap: () => context.push('/nutribot'),
                         child: Container(
                           width: 44,
                           height: 44,
@@ -90,7 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 color: Colors.white.withOpacity(0.3),
                                 width: 2),
                           ),
-                          child: const Icon(Icons.logout,
+                          child: const Icon(Icons.smart_toy_outlined,
                               color: Colors.white, size: 22),
                         ),
                       ),
@@ -372,7 +403,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _NavItem(
                       icon: Icons.person_outline,
                       label: 'Profile',
-                      onTap: () => context.push('/profile')),
+                      badge: _pendingReviewCount,
+                      onTap: () async {
+                        await context.push('/profile');
+                        _checkAdminNotifications();
+                      }),
                 ],
               ),
             ),
@@ -723,12 +758,14 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback? onTap;
+  final int badge;
 
   const _NavItem({
     required this.icon,
     required this.label,
     this.active = false,
     this.onTap,
+    this.badge = 0,
   });
 
   static const primaryColor = Color(0xFFEC6F2D);
@@ -738,19 +775,43 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon,
-            color: active ? primaryColor : Colors.grey, size: 24),
-        const SizedBox(height: 2),
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                color: active ? primaryColor : Colors.grey,
-                fontWeight: active
-                    ? FontWeight.w600
-                    : FontWeight.w400)),
-      ],
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(icon,
+                  color: active ? primaryColor : Colors.grey, size: 24),
+              if (badge > 0)
+                Positioned(
+                  top: -4,
+                  right: -6,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      badge > 9 ? '9+' : '$badge',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: active ? primaryColor : Colors.grey,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400)),
+        ],
       ),
     );
   }
