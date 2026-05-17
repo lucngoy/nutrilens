@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/inventory_provider.dart';
 import '../../scanner/models/product_model.dart';
+import '../../budget/providers/budget_provider.dart';
 
 class AddInventoryScreen extends ConsumerStatefulWidget {
   final ProductModel product;
@@ -16,6 +17,7 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
   static const primaryColor = Color(0xFFEC6F2D);
 
   final _quantityController = TextEditingController(text: '1');
+  final _priceController = TextEditingController();
   final _notesController = TextEditingController();
   final _consumptionController = TextEditingController();
   final _usesPerWeekController = TextEditingController();
@@ -40,6 +42,7 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
   @override
   void dispose() {
     _quantityController.dispose();
+    _priceController.dispose();
     _notesController.dispose();
     _consumptionController.dispose();
     _usesPerWeekController.dispose();
@@ -79,6 +82,38 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
         consumptionPerUse: double.tryParse(_consumptionController.text),
         usesPerWeek: double.tryParse(_usesPerWeekController.text),
       );
+
+      // Auto-log to grocery budget if a price was entered
+      final price = double.tryParse(_priceController.text);
+      if (price != null && price > 0) {
+        try {
+          await ref.read(budgetProvider.notifier).addSpending(
+            description: widget.product.name,
+            amount: price,
+            category: 'groceries',
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(children: [
+                  const Icon(Icons.check_circle_outline,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                      '${widget.product.name} added to grocery budget',
+                      overflow: TextOverflow.ellipsis)),
+                ]),
+                backgroundColor: const Color(0xFF27AE60),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (_) {
+          // Budget not set up yet or network error — don't block the inventory save
+        }
+      }
+
       if (mounted) {
         ref.read(inventoryTypeProvider.notifier).state = _inventoryType;
         context.go('/inventory');
@@ -222,6 +257,17 @@ class _AddInventoryScreenState extends ConsumerState<AddInventoryScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Price
+                  _Label('Price paid (optional)'),
+                  const SizedBox(height: 8),
+                  _InputField(
+                    controller: _priceController,
+                    hint: '0.00 — logs to grocery budget',
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    prefixIcon: Icons.shopping_cart_outlined,
                   ),
                   const SizedBox(height: 20),
 
@@ -531,8 +577,9 @@ class _InputField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final TextInputType? keyboardType;
+  final IconData? prefixIcon;
   const _InputField(
-      {required this.controller, required this.hint, this.keyboardType});
+      {required this.controller, required this.hint, this.keyboardType, this.prefixIcon});
 
   @override
   Widget build(BuildContext context) {
@@ -542,6 +589,9 @@ class _InputField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        prefixIcon: prefixIcon != null
+            ? Icon(prefixIcon, color: Colors.grey, size: 18)
+            : null,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
