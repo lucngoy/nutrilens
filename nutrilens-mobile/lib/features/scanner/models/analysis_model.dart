@@ -28,7 +28,9 @@ class AnalysisResult {
   final List<String> highlightedIngredients;
   final List<String> recommendations;
   final List<String> reasons;
-  final int score;
+  final int? score;
+  final bool unrated;
+  final String? unratedReason;
   final bool labEnriched;
 
   const AnalysisResult({
@@ -37,6 +39,8 @@ class AnalysisResult {
     required this.recommendations,
     required this.reasons,
     required this.score,
+    this.unrated = false,
+    this.unratedReason,
     this.labEnriched = false,
   });
 
@@ -55,7 +59,9 @@ class AnalysisResult {
       reasons: (json['reasons'] as List? ?? [])
           .map((e) => e.toString())
           .toList(),
-      score: json['score'] ?? 100,
+      score: json['score'] as int?,
+      unrated: json['unrated'] == true,
+      unratedReason: json['unrated_reason'] as String?,
       labEnriched: json['lab_enriched'] == true,
     );
   }

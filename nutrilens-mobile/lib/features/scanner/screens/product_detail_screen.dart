@@ -351,8 +351,10 @@ class _NutriLensScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _scoreColor(result.score);
-    final label = _scoreLabel(result.score);
+    if (result.unrated) return _buildUnrated();
+    final score = result.score!;
+    final color = _scoreColor(score);
+    final label = _scoreLabel(score);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -366,14 +368,13 @@ class _NutriLensScoreCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Arc gauge
               SizedBox(
                 width: 72,
                 height: 72,
                 child: CustomPaint(
-                  painter: _ArcGaugePainter(score: result.score, color: color),
+                  painter: _ArcGaugePainter(score: score, color: color),
                   child: Center(
-                    child: Text('${result.score}',
+                    child: Text('$score',
                         style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -445,7 +446,6 @@ class _NutriLensScoreCard extends StatelessWidget {
               ),
             ],
           ),
-          // Reasons
           if (result.reasons.isNotEmpty) ...[
             const SizedBox(height: 14),
             const Divider(height: 1, color: Color(0xFFF0F0F0)),
@@ -476,6 +476,61 @@ class _NutriLensScoreCard extends StatelessWidget {
                   ),
                 )),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnrated() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey.shade300, width: 2),
+            ),
+            child: const Center(
+              child: Icon(Icons.help_outline_rounded,
+                  size: 30, color: Colors.grey),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('NutriLens Score',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
+                const SizedBox(height: 4),
+                const Text('Product not scored',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF555555))),
+                if (result.unratedReason != null) ...[
+                  const SizedBox(height: 6),
+                  Text(result.unratedReason!,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          height: 1.4)),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

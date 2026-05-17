@@ -288,14 +288,14 @@ class ProductAnalysisView(APIView):
         available_fields = sum(1 for v in [sugar, salt, sat_fat, calories] if v is not None)
         data_quality_low = available_fields < 2
 
-        # Detect products that legitimately have no nutrition (water, salt, vinegar, spices…)
-        # Heuristic: no ingredients, no allergens, no nutriscore → naturally nutrition-free
+        product_name_lower = data.get('product_name', '').lower()
+
+        # Products that naturally have no nutrition: water, spices, vinegar…
         _ZERO_NUTRITION_NAMES = [
             'water', 'eau', 'sparkling', 'still water', 'mineral water',
             'vinegar', 'salt', 'sel', 'spice', 'épice', 'herb', 'tea',
             'coffee', 'café', 'thé', 'infusion',
         ]
-        product_name_lower = data.get('product_name', '').lower()
         naturally_no_nutrition = (
             not ingredients_text.strip() and
             not allergens and
@@ -303,10 +303,28 @@ class ProductAnalysisView(APIView):
             any(k in product_name_lower for k in _ZERO_NUTRITION_NAMES)
         )
 
+        # Products the algorithm cannot meaningfully score: alcohol, supplements, pure sugar
+        _NON_EVALUABLE_KEYWORDS = [
+            'beer', 'bière', 'biere', 'wine', 'vin ', 'vins', 'whisky', 'whiskey',
+            'vodka', 'rum ', 'rhum', 'gin ', 'champagne', 'liqueur', 'alcool', 'alcohol',
+            'supplement', 'supplément', 'complément', 'vitamins', 'vitamines',
+            'protein powder', 'whey', 'creatine', 'créatine',
+        ]
+        non_evaluable = any(k in product_name_lower for k in _NON_EVALUABLE_KEYWORDS)
+        non_evaluable_reason = (
+            'Alcoholic drinks are not scored — alcohol has no safe nutritional threshold'
+            if any(k in product_name_lower for k in [
+                'beer', 'bière', 'biere', 'wine', 'vin ', 'vins', 'whisky', 'whiskey',
+                'vodka', 'rum ', 'rhum', 'gin ', 'champagne', 'liqueur', 'alcool', 'alcohol',
+            ])
+            else 'Dietary supplements are not scored — formulations vary widely'
+        )
+
         # A processed product with no nutrition data at all is a red flag
         no_nutrition_data = (
             available_fields == 0 and
             not naturally_no_nutrition and
+            not non_evaluable and
             (bool(ingredients_text.strip()) or bool(allergens) or bool(nutriscore))
         )
 
@@ -544,16 +562,22 @@ class ProductAnalysisView(APIView):
             score = max(5, min(100, int(raw_score)))
 
         # 7. Data quality guard
-        if no_nutrition_data:
-            # Processed product with zero nutrition fields — avoid until verified
-            score = min(score, 50)
-            deduped.insert(0, {
-                'code': 'no_nutrition_data',
-                'label': 'No nutritional data',
-                'severity': 'warning',
-                'detail': 'This product has no nutritional information — '
-                          'avoid until data is verified',
-            })
+        unrated = False
+        unrated_reason = ''
+
+        if non_evaluable:
+            unrated = True
+            unrated_reason = non_evaluable_reason
+        elif no_nutrition_data:
+            unrated = True
+            unrated_reason = (
+                'This product has no nutritional information — '
+                'it cannot be scored until data is verified'
+            )
+
+        if unrated:
+            # Strip redundant "missing_X" warnings — they're implied by unrated
+            deduped = [w for w in deduped if not w['code'].startswith('missing_')]
         else:
             # Profile-aware critical missing fields
             critical_missing = []
@@ -642,7 +666,9 @@ class ProductAnalysisView(APIView):
             'warnings': deduped,
             'highlighted_ingredients': highlighted,
             'recommendations': list(dict.fromkeys(recommendations)),
-            'score': score,
+            'score': None if unrated else score,
+            'unrated': unrated,
+            'unrated_reason': unrated_reason if unrated else None,
             'reasons': reasons,
             'lab_enriched': lab is not None,
         })
