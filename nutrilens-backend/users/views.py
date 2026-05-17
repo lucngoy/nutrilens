@@ -1115,6 +1115,114 @@ class FoodIntakeSummaryView(APIView):
         })
 
 
+class BehavioralInsightsView(APIView):
+    """NL-57 — Behavioral insights from last 28 days of food intake."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    _WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                      'Friday', 'Saturday', 'Sunday']
+
+    def get(self, request):
+        from datetime import timedelta
+        from collections import defaultdict
+
+        today = timezone.now().date()
+        start = today - timedelta(days=27)
+
+        intakes = FoodIntake.objects.filter(
+            user=request.user,
+            date__range=[start, today],
+        )
+
+        by_date = defaultdict(list)
+        for i in intakes:
+            by_date[i.date].append(i)
+
+        total_days = 28
+        days_logged = len(by_date)
+        consistency_pct = round(days_logged / total_days * 100)
+
+        # Current streak (consecutive days ending today)
+        streak = 0
+        d = today
+        while d >= start:
+            if by_date.get(d):
+                streak += 1
+            else:
+                break
+            d -= timedelta(days=1)
+
+        # Avg calories by weekday
+        wd_calories = defaultdict(list)
+        for date, items in by_date.items():
+            wd_calories[date.weekday()].append(sum(i.calories for i in items))
+
+        avg_by_wd = {
+            wd: round(sum(vals) / len(vals), 1)
+            for wd, vals in wd_calories.items()
+        }
+
+        profile = getattr(request.user, 'profile', None)
+        calorie_target = (profile.daily_calorie_target if profile else None) or 2000
+
+        active_wds = {k: v for k, v in avg_by_wd.items() if v > 0}
+        busiest_wd = max(active_wds, key=lambda k: active_wds[k]) if active_wds else 0
+        best_wd = min(active_wds, key=lambda k: abs(active_wds[k] - calorie_target)) if active_wds else 0
+        worst_wd = max(active_wds, key=lambda k: abs(active_wds[k] - calorie_target)) if active_wds else 0
+
+        # Top foods (by frequency)
+        food_counts = defaultdict(int)
+        for items in by_date.values():
+            for item in items:
+                if item.name:
+                    food_counts[item.name] += 1
+        top_foods = sorted(food_counts.items(), key=lambda x: -x[1])[:5]
+
+        # Meal type distribution
+        meal_dist = defaultdict(int)
+        for items in by_date.values():
+            for item in items:
+                meal_dist[item.meal_type] += 1
+
+        # Avg daily calories (last 7 vs previous 7 days)
+        last7_start = today - timedelta(days=6)
+        prev7_start = today - timedelta(days=13)
+        prev7_end = today - timedelta(days=7)
+
+        def _avg_cal(date_from, date_to):
+            days = [d for d in by_date if date_from <= d <= date_to]
+            if not days:
+                return 0.0
+            return round(sum(
+                sum(i.calories for i in by_date[d]) for d in days
+            ) / len(days), 1)
+
+        avg_last7 = _avg_cal(last7_start, today)
+        avg_prev7 = _avg_cal(prev7_start, prev7_end)
+        trend = 'up' if avg_last7 > avg_prev7 + 50 else \
+                'down' if avg_last7 < avg_prev7 - 50 else 'stable'
+
+        return Response({
+            'period_days': total_days,
+            'days_logged': days_logged,
+            'consistency_pct': consistency_pct,
+            'current_streak': streak,
+            'calorie_target': calorie_target,
+            'avg_by_weekday': [
+                {'day': self._WEEKDAY_NAMES[i], 'calories': avg_by_wd.get(i, 0.0)}
+                for i in range(7)
+            ],
+            'busiest_day': self._WEEKDAY_NAMES[busiest_wd],
+            'best_day': self._WEEKDAY_NAMES[best_wd],
+            'worst_day': self._WEEKDAY_NAMES[worst_wd],
+            'top_foods': [{'name': n, 'count': c} for n, c in top_foods],
+            'meal_distribution': dict(meal_dist),
+            'avg_calories_last7': avg_last7,
+            'avg_calories_prev7': avg_prev7,
+            'week_trend': trend,
+        })
+
+
 class MedicalConsentView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

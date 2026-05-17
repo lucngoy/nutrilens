@@ -213,10 +213,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             const SizedBox(width: 12),
                             Expanded(
                             child: _QuickCard(
-                                icon: Icons.smart_toy_outlined,
-                                label: 'AI Coach',
-                                subtitle: 'Get advice',
-                                onTap: () => context.push('/nutribot'),
+                                icon: Icons.insights_outlined,
+                                label: 'Insights',
+                                subtitle: 'Your habits',
+                                onTap: () => context.push('/insights'),
                             ),
                             ),
                         ],
