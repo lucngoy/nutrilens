@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
@@ -75,6 +76,44 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
       });
     } catch (e) {
       setState(() { _error = _extractError(e); _scanning = false; });
+    }
+  }
+
+  Future<void> _showInventorySearchSheet(_ReceiptLine line) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _InventorySearchSheet(
+        query: line.description,
+        lineId: line.lineId,
+        onAdded: (int itemId) => setState(() {
+          line.addedToInventory = true;
+          line.addedInventoryItemId = itemId;
+        }),
+      ),
+    );
+  }
+
+  Future<void> _removeFromInventory(_ReceiptLine line) async {
+    final itemId = line.addedInventoryItemId;
+    if (itemId == null) return;
+    try {
+      await ApiClient.instance.delete('/inventory/$itemId/delete/');
+      setState(() {
+        line.addedToInventory = false;
+        line.addedInventoryItemId = null;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_extractError(e)),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 
@@ -268,6 +307,8 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                               line: line,
                               symbol: symbol,
                               onToggle: () => setState(() => line.included = !line.included),
+                              onQuickAdd: () => _showInventorySearchSheet(line),
+                              onRemove: () => _removeFromInventory(line),
                               showDivider: i < _lines.length - 1,
                             );
                           }),
@@ -344,9 +385,11 @@ class _ReceiptLine {
   String description;
   double amount;
   bool included;
-  final String? matchName;
-  final double? matchConfidence;
-  final int? matchInventoryId;
+  String? matchName;
+  double? matchConfidence;
+  int? matchInventoryId;
+  bool addedToInventory;
+  int? addedInventoryItemId; // tracks the created item for undo
 
   _ReceiptLine({
     required this.lineId,
@@ -356,6 +399,8 @@ class _ReceiptLine {
     this.matchName,
     this.matchConfidence,
     this.matchInventoryId,
+    this.addedToInventory = false,
+    this.addedInventoryItemId,
   });
 }
 
@@ -493,11 +538,14 @@ class _LineRow extends StatelessWidget {
   final _ReceiptLine line;
   final String symbol;
   final VoidCallback onToggle;
+  final VoidCallback onQuickAdd;
+  final VoidCallback onRemove;
   final bool showDivider;
 
   const _LineRow({
     required this.line, required this.symbol,
-    required this.onToggle, required this.showDivider,
+    required this.onToggle, required this.onQuickAdd,
+    required this.onRemove, required this.showDivider,
   });
 
   @override
@@ -589,6 +637,52 @@ class _LineRow extends StatelessWidget {
                       ),
                     ]),
                   ),
+                ] else ...[
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 34),
+                    child: Row(children: [
+                      GestureDetector(
+                        onTap: line.addedToInventory ? null : onQuickAdd,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(
+                            line.addedToInventory
+                                ? Icons.check_circle_outline
+                                : Icons.add_circle_outline,
+                            size: 13,
+                            color: line.addedToInventory
+                                ? const Color(0xFF27AE60)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            line.addedToInventory
+                                ? 'Added to inventory'
+                                : 'Add to inventory',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: line.addedToInventory
+                                  ? const Color(0xFF27AE60)
+                                  : Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ]),
+                      ),
+                      if (line.addedToInventory) ...[
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: onRemove,
+                          child: const Text('Undo',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFE74C3C),
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline)),
+                        ),
+                      ],
+                    ]),
+                  ),
                 ],
               ],
             ),
@@ -604,5 +698,342 @@ class _LineRow extends StatelessWidget {
     if (c >= 0.75) return const Color(0xFF27AE60);
     if (c >= 0.55) return const Color(0xFFF4D03F);
     return const Color(0xFFE67E22);
+  }
+}
+
+// ── Inventory Search Bottom Sheet ─────────────────────────────────────────────
+
+class _InventorySearchSheet extends StatefulWidget {
+  final String query;
+  final int lineId;
+  final void Function(int itemId) onAdded;
+  const _InventorySearchSheet({
+    required this.query, required this.lineId, required this.onAdded,
+  });
+
+  @override
+  State<_InventorySearchSheet> createState() => _InventorySearchSheetState();
+}
+
+class _InventorySearchSheetState extends State<_InventorySearchSheet> {
+  static const primaryColor = Color(0xFFEC6F2D);
+
+  List<Map<String, dynamic>> _results = [];
+  bool _loading = true;
+  String? _error;
+  int? _addingIndex;
+  String _inventoryType = 'personal';
+
+  @override
+  void initState() {
+    super.initState();
+    _search();
+  }
+
+  Future<void> _search() async {
+    try {
+      final resp = await ApiClient.instance.get(
+        '/inventory/search/',
+        queryParameters: {'q': widget.query},
+      );
+      setState(() {
+        _results = List<Map<String, dynamic>>.from(resp.data['products'] ?? []);
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Search failed';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _addToInventory(int index, Map<String, dynamic> product) async {
+    setState(() => _addingIndex = index);
+    try {
+      final nutriments = product['nutriments'] as Map? ?? {};
+      final resp = await ApiClient.instance.post('/inventory/add/', data: {
+        'barcode': product['code'],
+        'name': product['product_name'],
+        'brand': product['brands'] ?? '',
+        'image_url': product['image_url'] ?? '',
+        'nutriscore': product['nutriscore_grade'],
+        'inventory_type': _inventoryType,
+        'calories': nutriments['energy-kcal_100g'],
+        'fat': nutriments['fat_100g'],
+        'saturated_fat': nutriments['saturated-fat_100g'],
+        'carbohydrates': nutriments['carbohydrates_100g'],
+        'sugar': nutriments['sugars_100g'],
+        'fiber': nutriments['fiber_100g'],
+        'protein': nutriments['proteins_100g'],
+        'salt': nutriments['salt_100g'],
+        'quantity': 1,
+        'unit': 'pieces',
+      });
+      final itemId = resp.data['id'] as int;
+      widget.onAdded(itemId);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _addingIndex = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Failed to add to inventory'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, controller) => Column(
+        children: [
+          // Handle
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(
+              children: [
+                const Icon(Icons.search, color: primaryColor, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Find product',
+                          style: TextStyle(fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A))),
+                      Text('"${widget.query}"',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Inventory type toggle
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F0F0),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                _TypeTab(
+                  label: 'Personal',
+                  icon: Icons.person_outline,
+                  selected: _inventoryType == 'personal',
+                  onTap: () => setState(() => _inventoryType = 'personal'),
+                ),
+                _TypeTab(
+                  label: 'Family',
+                  icon: Icons.group_outlined,
+                  selected: _inventoryType == 'family',
+                  onTap: () => setState(() => _inventoryType = 'family'),
+                ),
+              ]),
+            ),
+          ),
+          const Divider(height: 1),
+          // Content
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: primaryColor))
+                : _error != null
+                    ? Center(child: Text(_error!,
+                        style: const TextStyle(color: Colors.grey)))
+                    : _results.isEmpty
+                        ? _buildEmpty(context)
+                        : ListView.separated(
+                            controller: controller,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _results.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (_, i) => _buildResultTile(i, _results[i]),
+                          ),
+          ),
+          // Scan barcode fallback
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push('/scanner');
+                },
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label: const Text('Scan barcode instead'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: primaryColor,
+                  side: const BorderSide(color: Color(0xFFEC6F2D)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(double.infinity, 44),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultTile(int index, Map<String, dynamic> product) {
+    final isAdding = _addingIndex == index;
+    final ns = product['nutriscore_grade'] as String?;
+    return GestureDetector(
+      onTap: isAdding ? null : () => _addToInventory(index, product),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFEEEEEE)),
+        ),
+        child: Row(
+          children: [
+            // Product image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: product['image_url'] != null
+                  ? Image.network(product['image_url'],
+                      width: 52, height: 52, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _imagePlaceholder())
+                  : _imagePlaceholder(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product['product_name'] ?? '',
+                      style: const TextStyle(fontSize: 13,
+                          fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if ((product['brands'] ?? '').isNotEmpty)
+                    Text(product['brands'],
+                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (ns != null)
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: _nsColor(ns), shape: BoxShape.circle),
+                child: Center(child: Text(ns.toUpperCase(),
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 11, fontWeight: FontWeight.w800))),
+              ),
+            const SizedBox(width: 8),
+            isAdding
+                ? const SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                        color: primaryColor, strokeWidth: 2))
+                : const Icon(Icons.add_circle_outline,
+                    color: primaryColor, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.search_off, size: 48, color: Colors.black12),
+          const SizedBox(height: 12),
+          const Text('No products found on OpenFoodFacts',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black38, fontSize: 14)),
+          const SizedBox(height: 6),
+          const Text('Try scanning the barcode directly',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _imagePlaceholder() => Container(
+    width: 52, height: 52,
+    color: const Color(0xFFF5F5F5),
+    child: const Icon(Icons.fastfood_rounded, color: Color(0xFFCCCCCC), size: 24),
+  );
+
+  Color _nsColor(String s) {
+    switch (s.toLowerCase()) {
+      case 'a': return const Color(0xFF1E8449);
+      case 'b': return const Color(0xFF58D68D);
+      case 'c': return const Color(0xFFF4D03F);
+      case 'd': return const Color(0xFFE67E22);
+      case 'e': return const Color(0xFFE74C3C);
+      default: return Colors.grey;
+    }
+  }
+}
+
+class _TypeTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TypeTab({
+    required this.label, required this.icon,
+    required this.selected, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: selected
+                ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15,
+                  color: selected ? const Color(0xFFEC6F2D) : Colors.grey),
+              const SizedBox(width: 5),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? const Color(0xFFEC6F2D) : Colors.grey)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

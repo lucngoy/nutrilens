@@ -13,11 +13,15 @@ from .views import (
     AdminProductReviewListView,
     AdminProductReviewActionView,
     AdminPendingCountView,
+    QuickAddInventoryView,
+    ProductSearchView,
 )
 
 urlpatterns = [
     path('', InventoryListView.as_view(), name='inventory-list'),
     path('add/', InventoryAddView.as_view(), name='inventory-add'),
+    path('quick-add/', QuickAddInventoryView.as_view(), name='inventory-quick-add'),
+    path('search/', ProductSearchView.as_view(), name='inventory-search'),
     path('<int:pk>/update/', InventoryUpdateView.as_view(), name='inventory-update'),
     path('<int:pk>/delete/', InventoryDeleteView.as_view(), name='inventory-delete'),
     path('product/<str:barcode>/', ProductLookupView.as_view(), name='product-lookup'),

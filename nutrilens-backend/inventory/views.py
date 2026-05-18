@@ -297,6 +297,105 @@ class ScanHistoryListView(generics.ListAPIView):
             user=self.request.user)[:int(limit)]
 
 
+class ProductSearchView(APIView):
+    """Search OpenFoodFacts by product name, return top results."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        q = (request.query_params.get('q') or '').strip()
+        if not q:
+            return Response({'error': 'q is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            response = requests.get(
+                'https://world.openfoodfacts.org/cgi/search.pl',
+                params={
+                    'search_terms': q,
+                    'search_simple': 1,
+                    'action': 'process',
+                    'json': 1,
+                    'page_size': 5,
+                    'fields': 'code,product_name,brands,nutriscore_grade,image_url,nutriments,ingredients_text,allergens_tags',
+                },
+                timeout=12,
+                headers={'User-Agent': 'NutriLens/1.0'},
+                allow_redirects=True,
+            )
+            # Don't raise_for_status — parse whatever we got
+            try:
+                data = response.json()
+            except ValueError:
+                return Response({'products': []})  # non-JSON response → empty results
+            products = []
+            for p in (data.get('products') or []):
+                name = (p.get('product_name') or '').strip()
+                code = (p.get('code') or '').strip()
+                if not name or not code:
+                    continue
+                products.append({
+                    'code': code,
+                    'product_name': name,
+                    'brands': p.get('brands', ''),
+                    'nutriscore_grade': p.get('nutriscore_grade') or None,
+                    'image_url': p.get('image_url') or None,
+                    'nutriments': p.get('nutriments') or {},
+                    'ingredients_text': p.get('ingredients_text', ''),
+                    'allergens_tags': p.get('allergens_tags') or [],
+                })
+            return Response({'products': products})
+        except requests.exceptions.Timeout:
+            return Response({'error': 'Search timed out — try again'}, status=status.HTTP_408_REQUEST_TIMEOUT)
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': f'OpenFoodFacts error: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
+        except (ValueError, KeyError) as e:
+            return Response({'error': f'Unexpected response format: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class QuickAddInventoryView(APIView):
+    """Add an inventory item by name only (no barcode required — receipt import)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        import uuid
+        name = (request.data.get('name') or '').strip()[:255]
+        if not name:
+            return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate a unique barcode so unique_together constraint is satisfied
+        barcode = f'RCPT-{uuid.uuid4().hex[:12].upper()}'
+        inventory_type = request.data.get('inventory_type', 'personal')
+
+        item = InventoryItem.objects.create(
+            user=request.user,
+            barcode=barcode,
+            inventory_type=inventory_type,
+            name=name,
+            quantity=int(request.data.get('quantity', 1)),
+            unit=request.data.get('unit', 'pieces'),
+            category=request.data.get('category', ''),
+            notes=request.data.get('notes', ''),
+        )
+
+        # Link back to ReceiptLine if provided
+        line_id = request.data.get('receipt_line_id')
+        if line_id:
+            try:
+                from budget.models import ReceiptLine
+                rl = ReceiptLine.objects.get(id=line_id, receipt__user=request.user)
+                rl.matched_inventory_item = item
+                rl.match_confirmed = True
+                rl.confidence_score = 1.0
+                rl.save(update_fields=['matched_inventory_item', 'match_confirmed', 'confidence_score'])
+            except Exception:
+                pass
+
+        return Response(InventoryItemSerializer(item).data, status=status.HTTP_201_CREATED)
+
+
 # Scan History Views
 class ScanHistoryAddView(APIView):
     permission_classes = [permissions.IsAuthenticated]
