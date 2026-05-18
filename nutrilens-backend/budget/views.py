@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils import timezone
 from django.conf import settings
-from .models import MonthlyBudget, SpendingEntry
+from .models import MonthlyBudget, SpendingEntry, Receipt, ReceiptLine
 from .serializers import MonthlyBudgetSerializer, SpendingEntrySerializer
 
 
@@ -75,6 +75,35 @@ class SpendingEntryDeleteView(generics.DestroyAPIView):
         return Response(MonthlyBudgetSerializer(budget).data)
 
 
+def _fuzzy_match_inventory(user, description):
+    """Return best matching InventoryItem and confidence (0–1) for a receipt line."""
+    from difflib import SequenceMatcher
+    from inventory.models import InventoryItem
+
+    items = InventoryItem.objects.filter(user=user).values('id', 'name', 'brand')
+    if not items:
+        return None, 0.0
+
+    desc_norm = description.lower().strip()
+    best_item = None
+    best_score = 0.0
+
+    for item in items:
+        candidate = f"{item['name']} {item['brand']}".lower().strip()
+        score = SequenceMatcher(None, desc_norm, candidate).ratio()
+        # Boost if all words of the shorter string appear in the longer
+        words = desc_norm.split()
+        if all(w in candidate for w in words if len(w) > 2):
+            score = max(score, 0.75)
+        if score > best_score:
+            best_score = score
+            best_item = item
+
+    if best_score >= 0.45:
+        return best_item, round(best_score, 2)
+    return None, 0.0
+
+
 class ReceiptScanView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -103,7 +132,7 @@ class ReceiptScanView(APIView):
             return Response({'error': 'AI service not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         try:
-            import base64, json, mimetypes
+            import base64, json
             from groq import Groq
 
             mime = image.content_type or 'image/jpeg'
@@ -127,26 +156,67 @@ class ReceiptScanView(APIView):
             end = raw.rfind('}') + 1
             data = json.loads(raw[start:end]) if start != -1 else {}
 
-            lines = []
+            # Persist receipt
+            from datetime import date as date_cls
+            purchase_date = None
+            try:
+                if data.get('purchase_date'):
+                    purchase_date = date_cls.fromisoformat(data['purchase_date'])
+            except ValueError:
+                pass
+
+            receipt = Receipt.objects.create(
+                user=request.user,
+                store_name=(data.get('store') or '')[:255],
+                purchase_date=purchase_date,
+                total=data.get('total'),
+                currency=(data.get('currency') or '')[:3],
+                raw_text=(data.get('raw_text') or '')[:2000],
+            )
+
+            # Parse lines, persist, and fuzzy-match against inventory
+            lines_out = []
             for line in (data.get('lines') or []):
                 try:
                     amount = float(line.get('amount') or 0)
-                    if amount > 0:
-                        lines.append({
-                            'description': str(line.get('description') or '').strip()[:255],
-                            'amount': round(amount, 2),
-                            'quantity': int(line.get('quantity') or 1),
-                        })
+                    if amount <= 0:
+                        continue
+                    desc = str(line.get('description') or '').strip()[:255]
+                    if not desc:
+                        continue
+
+                    matched_item, confidence = _fuzzy_match_inventory(request.user, desc)
+
+                    rl = ReceiptLine.objects.create(
+                        receipt=receipt,
+                        raw_label=desc,
+                        amount=round(amount, 2),
+                        quantity=int(line.get('quantity') or 1),
+                        matched_inventory_item_id=matched_item['id'] if matched_item else None,
+                        confidence_score=confidence if matched_item else None,
+                    )
+
+                    lines_out.append({
+                        'line_id': rl.id,
+                        'description': desc,
+                        'amount': round(amount, 2),
+                        'quantity': rl.quantity,
+                        'match': {
+                            'inventory_item_id': matched_item['id'],
+                            'name': matched_item['name'],
+                            'confidence': confidence,
+                        } if matched_item else None,
+                    })
                 except (TypeError, ValueError):
                     continue
 
             return Response({
+                'receipt_id': receipt.id,
                 'store': data.get('store'),
                 'purchase_date': data.get('purchase_date'),
                 'total': data.get('total'),
                 'currency': data.get('currency'),
-                'lines': lines,
-                'raw_text': (data.get('raw_text') or '')[:2000],
+                'lines': lines_out,
             })
 
         except Exception as e:
@@ -157,13 +227,18 @@ class ReceiptConfirmView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        lines = request.data.get('lines', [])
-        date_str = request.data.get('date')
+        receipt_id = request.data.get('receipt_id')
+        line_ids = request.data.get('line_ids', [])   # list of ReceiptLine IDs to confirm
         month = request.data.get('month', timezone.now().strftime('%Y-%m'))
-        store = request.data.get('store', '')
 
-        if not lines:
-            return Response({'error': 'lines is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not receipt_id or not line_ids:
+            return Response({'error': 'receipt_id and line_ids are required'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            receipt = Receipt.objects.get(id=receipt_id, user=request.user)
+        except Receipt.DoesNotExist:
+            return Response({'error': 'Receipt not found'}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             budget = MonthlyBudget.objects.get(user=request.user, month=month)
@@ -173,32 +248,28 @@ class ReceiptConfirmView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        from datetime import date as date_cls
-        try:
-            entry_date = date_cls.fromisoformat(date_str) if date_str else timezone.now().date()
-        except ValueError:
-            entry_date = timezone.now().date()
+        entry_date = receipt.purchase_date or timezone.now().date()
+        lines = ReceiptLine.objects.filter(id__in=line_ids, receipt=receipt)
 
-        created = []
-        for line in lines:
-            try:
-                amount = float(line.get('amount') or 0)
-                desc = str(line.get('description') or '').strip()[:255]
-                if amount > 0 and desc:
-                    entry = SpendingEntry.objects.create(
-                        user=request.user,
-                        budget=budget,
-                        description=desc,
-                        amount=round(amount, 2),
-                        category='groceries',
-                        date=entry_date,
-                    )
-                    created.append(entry.id)
-            except (TypeError, ValueError):
-                continue
+        created = 0
+        for rl in lines:
+            if rl.spending_entry_id:
+                continue  # already confirmed
+            entry = SpendingEntry.objects.create(
+                user=request.user,
+                budget=budget,
+                description=rl.raw_label,
+                amount=rl.amount,
+                category='groceries',
+                date=entry_date,
+            )
+            rl.spending_entry = entry
+            rl.match_confirmed = True
+            rl.save(update_fields=['spending_entry', 'match_confirmed'])
+            created += 1
 
         return Response({
-            'inserted': len(created),
+            'inserted': created,
             'budget': MonthlyBudgetSerializer(budget).data,
         }, status=status.HTTP_201_CREATED)
 

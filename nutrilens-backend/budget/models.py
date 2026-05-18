@@ -4,6 +4,44 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 
+class Receipt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='receipts')
+    store_name = models.CharField(max_length=255, blank=True, default='')
+    purchase_date = models.DateField(null=True, blank=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, blank=True, default='')
+    raw_text = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} — {self.store_name or 'Receipt'} ({self.purchase_date})"
+
+
+class ReceiptLine(models.Model):
+    receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name='lines')
+    raw_label = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField(default=1)
+    # Matching
+    matched_inventory_item = models.ForeignKey(
+        'inventory.InventoryItem', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='receipt_lines',
+    )
+    confidence_score = models.FloatField(null=True, blank=True)
+    match_confirmed = models.BooleanField(default=False)
+    # After confirm
+    spending_entry = models.OneToOneField(
+        'SpendingEntry', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='receipt_line',
+    )
+
+    def __str__(self):
+        return f"{self.raw_label} — {self.amount}"
+
+
 class MonthlyBudget(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='budgets')
     month = models.CharField(max_length=7)  # 'YYYY-MM'

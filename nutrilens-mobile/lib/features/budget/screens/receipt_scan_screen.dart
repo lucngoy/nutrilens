@@ -22,7 +22,7 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
   bool _confirming = false;
   String? _error;
 
-  // Parsed receipt data
+  int? _receiptId;
   String? _store;
   String? _purchaseDate;
   List<_ReceiptLine> _lines = [];
@@ -38,6 +38,7 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     setState(() {
       _image = File(picked.path);
       _lines = [];
+      _receiptId = null;
       _store = null;
       _purchaseDate = null;
       _error = null;
@@ -50,45 +51,42 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     setState(() { _scanning = true; _error = null; });
     try {
       final form = FormData.fromMap({
-        'image': await MultipartFile.fromFile(
-          _image!.path,
-          filename: 'receipt.jpg',
-        ),
+        'image': await MultipartFile.fromFile(_image!.path, filename: 'receipt.jpg'),
       });
       final resp = await ApiClient.instance.post('/budget/receipt/scan/', data: form);
       final data = resp.data as Map<String, dynamic>;
 
-      final rawLines = (data['lines'] as List? ?? []);
       setState(() {
+        _receiptId = data['receipt_id'] as int?;
         _store = data['store'] as String?;
         _purchaseDate = data['purchase_date'] as String?;
-        _lines = rawLines.map((l) => _ReceiptLine(
-          description: l['description'] ?? '',
-          amount: (l['amount'] as num).toDouble(),
-        )).toList();
+        _lines = (data['lines'] as List? ?? []).map((l) {
+          final match = l['match'] as Map<String, dynamic>?;
+          return _ReceiptLine(
+            lineId: l['line_id'] as int,
+            description: l['description'] ?? '',
+            amount: (l['amount'] as num).toDouble(),
+            matchName: match?['name'] as String?,
+            matchConfidence: (match?['confidence'] as num?)?.toDouble(),
+            matchInventoryId: match?['inventory_item_id'] as int?,
+          );
+        }).toList();
         _scanning = false;
       });
     } catch (e) {
-      setState(() {
-        _error = _extractError(e);
-        _scanning = false;
-      });
+      setState(() { _error = _extractError(e); _scanning = false; });
     }
   }
 
   Future<void> _confirm() async {
-    final confirmed = _lines.where((l) => l.included && l.amount > 0).toList();
-    if (confirmed.isEmpty) return;
+    final confirmed = _lines.where((l) => l.included).toList();
+    if (confirmed.isEmpty || _receiptId == null) return;
 
     setState(() { _confirming = true; _error = null; });
     try {
       final resp = await ApiClient.instance.post('/budget/receipt/confirm/', data: {
-        'lines': confirmed.map((l) => {
-          'description': l.description,
-          'amount': l.amount,
-        }).toList(),
-        if (_purchaseDate != null) 'date': _purchaseDate,
-        'store': _store ?? '',
+        'receipt_id': _receiptId,
+        'line_ids': confirmed.map((l) => l.lineId).toList(),
       });
 
       final inserted = resp.data['inserted'] as int? ?? 0;
@@ -108,10 +106,7 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      setState(() {
-        _error = _extractError(e);
-        _confirming = false;
-      });
+      setState(() { _error = _extractError(e); _confirming = false; });
     }
   }
 
@@ -127,12 +122,12 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     final symbol = ref.watch(currencyProvider.notifier).symbol;
     final hasResult = _lines.isNotEmpty;
     final confirmedCount = _lines.where((l) => l.included).length;
+    final matchedCount = _lines.where((l) => l.matchName != null).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       body: Column(
         children: [
-          // Header
           Container(
             color: Colors.white,
             padding: EdgeInsets.fromLTRB(
@@ -171,7 +166,6 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Image picker card
                   _PickerCard(
                     image: _image,
                     scanning: _scanning,
@@ -196,7 +190,6 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                   if (hasResult) ...[
                     const SizedBox(height: 16),
 
-                    // Store + date info
                     if (_store != null || _purchaseDate != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -215,9 +208,29 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                         ]),
                       ),
 
+                    if (matchedCount > 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F7FF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.inventory_2_outlined,
+                              size: 15, color: Color(0xFF2980B9)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(
+                            '$matchedCount item${matchedCount == 1 ? '' : 's'} matched your inventory',
+                            style: const TextStyle(fontSize: 12,
+                                color: Color(0xFF2980B9), fontWeight: FontWeight.w600),
+                          )),
+                        ]),
+                      ),
+                    ],
+
                     const SizedBox(height: 12),
 
-                    // Lines
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -255,19 +268,19 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                               line: line,
                               symbol: symbol,
                               onToggle: () => setState(() => line.included = !line.included),
-                              onAmountChanged: (v) => setState(() => line.amount = v),
-                              onDescChanged: (v) => setState(() => line.description = v),
                               showDivider: i < _lines.length - 1,
                             );
                           }),
                           if (_lines.any((l) => l.included)) ...[
                             const Divider(height: 1, indent: 16, endIndent: 16),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
                               child: Row(children: [
                                 const Text('Total to log',
                                     style: TextStyle(fontSize: 13,
-                                        fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1A1A1A))),
                                 const Spacer(),
                                 Text(
                                   '$symbol${_lines.where((l) => l.included).fold(0.0, (s, l) => s + l.amount).toStringAsFixed(2)}',
@@ -288,7 +301,6 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
             ),
           ),
 
-          // Bottom confirm button
           if (hasResult)
             Container(
               decoration: const BoxDecoration(
@@ -310,7 +322,8 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                 ),
                 child: _confirming
                     ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
                     : Text(
                         'Add $confirmedCount expense${confirmedCount == 1 ? '' : 's'} to budget',
                         style: const TextStyle(color: Colors.white,
@@ -327,10 +340,23 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 class _ReceiptLine {
+  final int lineId;
   String description;
   double amount;
   bool included;
-  _ReceiptLine({required this.description, required this.amount, this.included = true});
+  final String? matchName;
+  final double? matchConfidence;
+  final int? matchInventoryId;
+
+  _ReceiptLine({
+    required this.lineId,
+    required this.description,
+    required this.amount,
+    this.included = true,
+    this.matchName,
+    this.matchConfidence,
+    this.matchInventoryId,
+  });
 }
 
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
@@ -352,9 +378,7 @@ class _PickerCard extends StatelessWidget {
       return Container(
         height: 200,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
+            color: Colors.white, borderRadius: BorderRadius.circular(16)),
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -372,8 +396,8 @@ class _PickerCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Image.file(image!, width: double.infinity,
-                height: 220, fit: BoxFit.cover),
+            child: Image.file(image!,
+                width: double.infinity, height: 220, fit: BoxFit.cover),
           ),
           Positioned(
             top: 10, right: 10,
@@ -388,7 +412,8 @@ class _PickerCard extends StatelessWidget {
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.camera_alt_outlined, color: Colors.white, size: 14),
                   SizedBox(width: 4),
-                  Text('Retake', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  Text('Retake',
+                      style: TextStyle(color: Colors.white, fontSize: 12)),
                 ]),
               ),
             ),
@@ -402,8 +427,7 @@ class _PickerCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: const Color(0xFFEC6F2D).withOpacity(0.25), width: 1.5,
-            style: BorderStyle.solid),
+            color: const Color(0xFFEC6F2D).withOpacity(0.25), width: 1.5),
       ),
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -445,7 +469,8 @@ class _PickerCard extends StatelessWidget {
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: onCamera,
-                icon: const Icon(Icons.camera_alt_outlined, size: 16, color: Colors.white),
+                icon: const Icon(Icons.camera_alt_outlined,
+                    size: 16, color: Colors.white),
                 label: const Text('Camera',
                     style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
@@ -468,58 +493,103 @@ class _LineRow extends StatelessWidget {
   final _ReceiptLine line;
   final String symbol;
   final VoidCallback onToggle;
-  final ValueChanged<double> onAmountChanged;
-  final ValueChanged<String> onDescChanged;
   final bool showDivider;
 
   const _LineRow({
     required this.line, required this.symbol,
-    required this.onToggle, required this.onAmountChanged,
-    required this.onDescChanged, required this.showDivider,
+    required this.onToggle, required this.showDivider,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasMatch = line.matchName != null;
+    final confidence = line.matchConfidence ?? 0.0;
+
     return Column(
       children: [
         GestureDetector(
           onTap: onToggle,
           behavior: HitTestBehavior.opaque,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  line.included
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: line.included
-                      ? const Color(0xFF27AE60)
-                      : Colors.grey.shade300,
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    line.description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: line.included ? const Color(0xFF1A1A1A) : Colors.grey,
-                      decoration: line.included ? null : TextDecoration.lineThrough,
+                Row(
+                  children: [
+                    Icon(
+                      line.included
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: line.included
+                          ? const Color(0xFF27AE60)
+                          : Colors.grey.shade300,
+                      size: 22,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        line.description,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: line.included
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.grey,
+                          decoration: line.included
+                              ? null
+                              : TextDecoration.lineThrough,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '$symbol${line.amount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: line.included
+                            ? const Color(0xFF1A1A1A)
+                            : Colors.grey,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  '$symbol${line.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: line.included ? const Color(0xFF1A1A1A) : Colors.grey,
+                if (hasMatch) ...[
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 34),
+                    child: Row(children: [
+                      const Icon(Icons.inventory_2_outlined,
+                          size: 12, color: Color(0xFF2980B9)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Matches "${line.matchName}" in inventory',
+                          style: const TextStyle(
+                              fontSize: 11, color: Color(0xFF2980B9)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _confidenceColor(confidence).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${(confidence * 100).toInt()}%',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: _confidenceColor(confidence)),
+                        ),
+                      ),
+                    ]),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -528,5 +598,11 @@ class _LineRow extends StatelessWidget {
           const Divider(height: 1, indent: 50, endIndent: 16),
       ],
     );
+  }
+
+  Color _confidenceColor(double c) {
+    if (c >= 0.75) return const Color(0xFF27AE60);
+    if (c >= 0.55) return const Color(0xFFF4D03F);
+    return const Color(0xFFE67E22);
   }
 }
