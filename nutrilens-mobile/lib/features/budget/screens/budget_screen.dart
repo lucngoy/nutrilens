@@ -85,7 +85,20 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
             ),
           ),
-          if (budget != null)
+          if (budget != null) ...[
+            GestureDetector(
+              onTap: () => context.push('/budget/receipt'),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.receipt_long_outlined, color: primaryColor, size: 18),
+              ),
+            ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: () => _showEditBudgetSheet(budget),
               child: Container(
@@ -98,6 +111,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                 child: const Icon(Icons.edit_outlined, color: primaryColor, size: 18),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -199,7 +213,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             children: [
               const Text('Expenses', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
               TextButton.icon(
-                onPressed: () => _showAddSpendingSheet(budget),
+                onPressed: () => _showAddOptions(budget),
                 icon: const Icon(Icons.add, color: primaryColor),
                 label: const Text('Add', style: TextStyle(color: primaryColor, fontWeight: FontWeight.w600)),
               ),
@@ -467,6 +481,55 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       };
 
   // ── Sheets ────────────────────────────────────────────────────────────────
+
+  void _showAddOptions(MonthlyBudget budget) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              _AddOptionTile(
+                icon: Icons.receipt_long_outlined,
+                label: 'Scan Receipt',
+                sub: 'AI extracts items from a photo',
+                color: primaryColor,
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/budget/receipt');
+                },
+              ),
+              const SizedBox(height: 12),
+              _AddOptionTile(
+                icon: Icons.edit_outlined,
+                label: 'Add Manually',
+                sub: 'Enter description and amount',
+                color: const Color(0xFF2980B9),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddSpendingSheet(budget);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showAddSpendingSheet(MonthlyBudget budget) {
     final symbol = ref.read(currencyProvider.notifier).symbol;
@@ -905,4 +968,58 @@ class _BudgetAmountField extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(vertical: 20),
         ),
       );
+}
+
+class _AddOptionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final Color color;
+  final VoidCallback onTap;
+  const _AddOptionTile({
+    required this.icon, required this.label, required this.sub,
+    required this.color, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+                  const SizedBox(height: 2),
+                  Text(sub,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: color.withOpacity(0.5), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }
